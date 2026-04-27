@@ -663,7 +663,23 @@
   ],
   "total_interactions": 36,
   "best_coffee": "Macchiato",
-  "best_rating": 5,
+  "best_rating": 5.0,
   "strategy": "qlearning",
-  "use_context": true
+  "use_context": true,
+  "use_subjective": true,
+  "use_hybrid": true,
+  "coffees": [
+    "Americano",
+    "Cappuccino",
+    "Cold Brew",
+    "Cortado",
+    "Decaf",
+    "Espresso",
+    "Flat White",
+    "Frappuccino",
+    "Iced Coffee",
+    "Latte",
+    "Macchiato",
+    "Mocha"
+  ]
 }

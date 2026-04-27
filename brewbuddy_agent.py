@@ -1,392 +1,456 @@
 """
-BrewBuddy AI Agent - Q-Learning with Context-Aware Recommendations
-Implements Sense-Think-Act-Learn architecture
+BrewBuddy: hybrid ML (state classification + content match) + RL (Q-learning / bandits).
+Implements Sense–Think–Act–Learn; logs interactions to SQLite; optional JSON for agent weights.
 """
+
+from __future__ import annotations
+
+import json
+import os
+import sqlite3
+from collections import defaultdict, deque
+from datetime import datetime, timedelta
+from pathlib import Path
+from typing import Any, Deque, Dict, List, Optional, Sequence, Union
 
 import numpy as np
 import pandas as pd
-from collections import defaultdict, deque
-from datetime import datetime, timedelta
-import json
-import os
-from typing import Optional, Dict, Any, Union
+
+from brewbuddy_data.database import get_default_db_path, init_db, log_interaction
+from brewbuddy_data.database import get_coffee_dicts, get_coffee_list
+from hybrid_ml import StateClassifier, build_need_vector, coffee_to_vector, select_candidates
+from subjective_context import SubjectiveContext
 
 
 class NoWork:
-    """
-    Explicit NoWork state indicating the agent is active but has no work to process.
-    """
+    """Explicit no-work: agent is alive but nothing to process (queue, cooldown, or pending rating)."""
+
     def __init__(self, reason: str = "No work available"):
         self.reason = reason
-    
+
     def __repr__(self):
         return f"NoWork(reason='{self.reason}')"
-    
+
     def __eq__(self, other):
         return isinstance(other, NoWork)
 
 
 class BrewBuddyAgent:
     """
-    AI Agent that learns user preferences using Q-Learning
-    Implements Sense-Think-Act-Learn architecture
+    AI layer: Q-learning, Thompson, or UCB on a (possibly) restricted candidate set.
+    ML layer: state classification + cosine shortlist over SQLite coffee features.
     """
-    
-    def __init__(self, coffees, learning_rate=0.1, discount_factor=0.9, 
-                 epsilon=0.3, use_context=True, strategy='qlearning'):
-        """
-        Initialize the BrewBuddy agent
-        
-        Args:
-            coffees: List of available coffee options
-            learning_rate: Q-learning learning rate (alpha)
-            discount_factor: Q-learning discount factor (gamma)
-            epsilon: Exploration rate for epsilon-greedy
-            use_context: Whether to use context-aware states
-            strategy: 'qlearning', 'thompson', or 'ucb'
-        """
-        self.coffees = coffees
+
+    def __init__(
+        self,
+        coffees: Optional[Sequence[str]] = None,
+        learning_rate: float = 0.1,
+        discount_factor: float = 0.9,
+        epsilon: float = 0.3,
+        use_context: bool = True,
+        use_subjective: bool = True,
+        use_hybrid: bool = True,
+        strategy: str = "qlearning",
+        db_path: Optional[Path] = None,
+    ) -> None:
+        self._db_path = db_path or get_default_db_path()
+        init_db(self._db_path)
+
+        if coffees is None:
+            self.coffees: List[str] = get_coffee_list(self._db_path)
+        else:
+            self.coffees = list(coffees)
+        full = get_coffee_dicts(self._db_path)
+        self.coffee_items: Dict[str, Dict[str, Any]] = {n: full[n] for n in self.coffees if n in full}
+
         self.learning_rate = learning_rate
         self.discount_factor = discount_factor
         self.epsilon = epsilon
         self.use_context = use_context
+        self.use_subjective = use_subjective
+        self.use_hybrid = use_hybrid
         self.strategy = strategy
-        
-        # Q-table: state -> action -> Q-value
-        self.q_table = defaultdict(lambda: defaultdict(float))
-        
-        # For Multi-Armed Bandits
-        if strategy == 'thompson':
-            # Thompson Sampling: Beta distribution parameters
-            self.alpha = {coffee: 1.0 for coffee in coffees}  # Success count
-            self.beta = {coffee: 1.0 for coffee in coffees}   # Failure count
-        elif strategy == 'ucb':
-            # UCB: Track counts and average rewards
-            self.action_counts = {coffee: 0 for coffee in coffees}
-            self.action_rewards = {coffee: [] for coffee in coffees}
-            self.total_pulls = 0
-        
-        # Statistics
-        self.interaction_history = []
-        self.total_interactions = 0
-        self.best_coffee = None
-        self.best_rating = 0
-        
-        # Context state
-        self.current_context = None
-        
-        # Background runner support
-        self.context_queue = deque()  # Queue for pending context requests
-        self.last_recommendation_time = None  # Track when last recommendation was made
-        self.min_recommendation_interval = timedelta(seconds=5)  # Minimum time between recommendations
-        self.pending_recommendation = None  # Current recommendation waiting for rating
-        
-    def sense(self, time_of_day=None, weather=None, temperature=None):
-        """
-        SENSE phase: Gather context information about the environment
-        
-        Args:
-            time_of_day: 'morning', 'afternoon', 'evening', 'night'
-            weather: 'sunny', 'rainy', 'cloudy', 'cold', 'hot'
-            temperature: Numeric temperature value
-        """
-        # Auto-detect time of day if not provided
+        self.state_classifier = StateClassifier()
+
+        self.q_table: Dict[str, Any] = defaultdict(lambda: defaultdict(float))
+
+        if self.strategy == "thompson":
+            self.alpha: Dict[str, float] = {c: 1.0 for c in self.coffees}
+            self.beta: Dict[str, float] = {c: 1.0 for c in self.coffees}
+        elif self.strategy == "ucb":
+            self.action_counts: Dict[str, int] = {c: 0 for c in self.coffees}
+            self.action_rewards: Dict[str, List[float]] = {c: [] for c in self.coffees}
+            self.total_pulls: int = 0
+
+        self.interaction_history: List[Dict[str, Any]] = []
+        self.total_interactions: int = 0
+        self.best_coffee: Optional[str] = None
+        self.best_rating: float = 0
+
+        self.current_context: Optional[str] = None
+        self.current_subjective: SubjectiveContext = SubjectiveContext()
+        self.current_ml_state: str = "balanced"
+        self._candidate_coffees: List[str] = []
+        self.last_cosine_scores: Dict[str, float] = {}
+        self.last_need_vector: Optional[List[float]] = None
+
+        self.context_queue: Deque[Dict[str, Any]] = deque()
+        self.last_recommendation_time: Optional[datetime] = None
+        self.min_recommendation_interval: timedelta = timedelta(seconds=5)
+        self.pending_recommendation: Optional[str] = None
+        self._last_user_profile: Optional[Dict[str, Any]] = None
+        self._last_sense: Dict[str, Any] = {}
+
+    def _action_space(self) -> List[str]:
+        c = [x for x in (self._candidate_coffees or []) if x in self.coffees]
+        if c:
+            return c
+        return list(self.coffees)
+
+    @staticmethod
+    def _temp_category(temperature: Optional[float]) -> str:
+        if temperature is None:
+            return "moderate"
+        if float(temperature) > 25:
+            return "hot"
+        if float(temperature) < 15:
+            return "cold"
+        return "moderate"
+
+    def sense(
+        self,
+        time_of_day: Optional[str] = None,
+        weather: Optional[str] = None,
+        temperature: Optional[float] = None,
+        subjective: Any = None,
+        user_profile: Optional[Dict[str, Any]] = None,
+    ) -> str:
         if time_of_day is None:
-            hour = datetime.now().hour
-            if 5 <= hour < 12:
-                time_of_day = 'morning'
-            elif 12 <= hour < 17:
-                time_of_day = 'afternoon'
-            elif 17 <= hour < 22:
-                time_of_day = 'evening'
+            h = datetime.now().hour
+            if 5 <= h < 12:
+                time_of_day = "morning"
+            elif 12 <= h < 17:
+                time_of_day = "afternoon"
+            elif 17 <= h < 22:
+                time_of_day = "evening"
             else:
-                time_of_day = 'night'
-        
-        # Create context state
-        if self.use_context:
-            context_parts = [time_of_day]
-            if weather:
-                context_parts.append(weather)
-            if temperature:
-                temp_category = 'hot' if temperature > 25 else 'cold' if temperature < 15 else 'moderate'
-                context_parts.append(temp_category)
-            self.current_context = '_'.join(context_parts)
+                time_of_day = "night"
+
+        if isinstance(subjective, SubjectiveContext):
+            self.current_subjective = subjective
         else:
-            self.current_context = 'default'
-        
-        return self.current_context
-    
-    def think(self):
-        """
-        THINK phase: Decide which coffee to recommend
-        Uses epsilon-greedy for Q-learning, or MAB strategies
-        """
-        if self.strategy == 'qlearning':
-            return self._think_qlearning()
-        elif self.strategy == 'thompson':
-            return self._think_thompson()
-        elif self.strategy == 'ucb':
-            return self._think_ucb()
-        else:
-            return np.random.choice(self.coffees)
-    
-    def _think_qlearning(self):
-        """Q-learning decision making with epsilon-greedy"""
-        # Exploration: random choice
-        if np.random.random() < self.epsilon:
-            return np.random.choice(self.coffees)
-        
-        # Exploitation: choose best action for current state
-        state = self.current_context
-        q_values = {coffee: self.q_table[state][coffee] for coffee in self.coffees}
-        
-        # If all Q-values are 0 (initialization), choose randomly
-        max_q = max(q_values.values())
-        if max_q == 0:
-            return np.random.choice(self.coffees)
-        
-        # Choose action with highest Q-value
-        best_actions = [coffee for coffee, q_val in q_values.items() if q_val == max_q]
-        return np.random.choice(best_actions)
-    
-    def _think_thompson(self):
-        """Thompson Sampling for Multi-Armed Bandit"""
-        # Sample from Beta distribution for each coffee
-        samples = {}
-        for coffee in self.coffees:
-            samples[coffee] = np.random.beta(self.alpha[coffee], self.beta[coffee])
-        
-        # Choose coffee with highest sample
-        return max(samples, key=samples.get)
-    
-    def _think_ucb(self):
-        """Upper Confidence Bound (UCB) for Multi-Armed Bandit"""
-        if self.total_pulls == 0:
-            return np.random.choice(self.coffees)
-        
-        ucb_values = {}
-        for coffee in self.coffees:
-            if self.action_counts[coffee] == 0:
-                # If never tried, give it high priority
-                ucb_values[coffee] = float('inf')
-            else:
-                # Average reward
-                avg_reward = np.mean(self.action_rewards[coffee])
-                # UCB formula: avg_reward + c * sqrt(ln(total_pulls) / count)
-                c = 2.0  # Exploration constant
-                confidence = c * np.sqrt(np.log(self.total_pulls) / self.action_counts[coffee])
-                ucb_values[coffee] = avg_reward + confidence
-        
-        return max(ucb_values, key=ucb_values.get)
-    
-    def act(self):
-        """
-        ACT phase: Recommend a coffee
-        """
-        recommended_coffee = self.think()
-        return recommended_coffee
-    
-    def add_context_request(self, time_of_day=None, weather=None, temperature=None):
-        """
-        Add a context request to the queue for background processing.
-        
-        Args:
-            time_of_day: 'morning', 'afternoon', 'evening', 'night'
-            weather: 'sunny', 'rainy', 'cloudy', 'cold', 'hot'
-            temperature: Numeric temperature value
-        """
-        context_data = {
-            'time_of_day': time_of_day,
-            'weather': weather,
-            'temperature': temperature,
-            'timestamp': datetime.now()
+            self.current_subjective = SubjectiveContext.from_dict(subjective)
+
+        self._last_user_profile = user_profile
+        self._last_sense = {
+            "time_of_day": time_of_day,
+            "weather": weather,
+            "temperature_c": float(temperature) if temperature is not None else None,
         }
-        self.context_queue.append(context_data)
-    
+
+        temp_category = self._temp_category(temperature)
+        if self.use_context:
+            parts = [time_of_day] if time_of_day else ["default"]
+            if weather:
+                parts.append(weather)
+            if temperature is not None:
+                parts.append(temp_category)
+        else:
+            parts = ["default"]
+        if self.use_subjective:
+            subj_key = (
+                f"s{int(self.current_subjective.sleep_hours):02d}f{self.current_subjective.fatigue}"
+                f"l{1 if self.current_subjective.lactose_intolerance else 0}"
+                f"soc{self.current_subjective.social_battery[:1]}"
+            )
+        else:
+            subj_key = "nosubj"
+        if self.use_hybrid:
+            self.current_ml_state = self.state_classifier.predict(
+                self.current_subjective, time_of_day, temp_category
+            )
+            in_cat: List[str] = [
+                n
+                for n in self.coffees
+                if (self.coffee_items.get(n) or {}).get("state_category") == self.current_ml_state
+            ]
+            if not in_cat:
+                in_cat = list(self.coffees)
+            need = build_need_vector(self.current_subjective, user_profile)
+            self.last_need_vector = need.tolist()
+            cands, cos_scores = select_candidates(
+                in_cat, self.coffee_items, need, self.current_subjective, top_k=5
+            )
+            self._candidate_coffees = cands
+            self.last_cosine_scores = cos_scores
+        else:
+            self.current_ml_state = "balanced"
+            self._candidate_coffees = list(self.coffees)
+            n = build_need_vector(self.current_subjective, user_profile)
+            self.last_need_vector = n.tolist()
+            self.last_cosine_scores = {}
+
+        if self.use_context:
+            ext = "_".join(parts)
+        else:
+            ext = "default" if not self.use_subjective else f"default_{subj_key}"
+        if self.use_subjective:
+            if self.use_hybrid:
+                self.current_context = f"{ext}__{subj_key}__{self.current_ml_state}"
+            else:
+                self.current_context = f"{ext}__{subj_key}"
+        else:
+            if self.use_hybrid:
+                self.current_context = f"{ext}__{self.current_ml_state}"
+            else:
+                self.current_context = ext
+        return str(self.current_context)
+
+    def think(self) -> str:
+        if self.strategy == "qlearning":
+            return self._think_qlearning()
+        if self.strategy == "thompson":
+            return self._think_thompson()
+        if self.strategy == "ucb":
+            return self._think_ucb()
+        return str(np.random.choice(self._action_space()))
+
+    def _think_qlearning(self) -> str:
+        space = self._action_space()
+        if not space:
+            return str(np.random.choice(self.coffees))
+        if np.random.random() < self.epsilon:
+            return str(np.random.choice(space))
+        state = self.current_context or "default"
+        qv = {a: float(self.q_table[state][a]) for a in space}
+        m = max(qv.values()) if qv else 0.0
+        if m == 0:
+            return str(np.random.choice(space))
+        best = [a for a, v in qv.items() if v == m]
+        return str(np.random.choice(best))
+
+    def _think_thompson(self) -> str:
+        space = self._action_space()
+        if not space:
+            return str(np.random.choice(self.coffees))
+        s = {c: float(np.random.beta(self.alpha[c], self.beta[c])) for c in space}
+        return str(max(s, key=s.get))
+
+    def _think_ucb(self) -> str:
+        space = self._action_space()
+        if not space:
+            return str(np.random.choice(self.coffees))
+        if self.total_pulls == 0:
+            return str(np.random.choice(space))
+        c = 2.0
+        ucb: Dict[str, float] = {}
+        for a in space:
+            if self.action_counts[a] == 0:
+                ucb[a] = float("inf")
+            else:
+                avg = float(np.mean(self.action_rewards[a]))
+                conf = c * float(np.sqrt(np.log(self.total_pulls) / self.action_counts[a]))
+                ucb[a] = avg + conf
+        return str(max(ucb, key=ucb.get))
+
+    def act(self) -> str:
+        return self.think()
+
+    def add_context_request(
+        self,
+        time_of_day: Optional[str] = None,
+        weather: Optional[str] = None,
+        temperature: Optional[float] = None,
+        subjective: Any = None,
+        user_profile: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        self.context_queue.append(
+            {
+                "time_of_day": time_of_day,
+                "weather": weather,
+                "temperature": temperature,
+                "subjective": subjective,
+                "user_profile": user_profile,
+                "timestamp": datetime.now(),
+            }
+        )
+
     def tick(self) -> Union[str, NoWork]:
-        """
-        Process exactly one decision/recommendation.
-        Called periodically by the background runner.
-        
-        Returns:
-            str: Coffee recommendation if work is available
-            NoWork: If no work is available (no context in queue or too soon since last recommendation)
-        """
-        # Check if there's a pending recommendation waiting for rating
         if self.pending_recommendation is not None:
             return NoWork("Waiting for user rating on pending recommendation")
-        
-        # Check if enough time has passed since last recommendation
         if self.last_recommendation_time is not None:
-            time_since_last = datetime.now() - self.last_recommendation_time
-            if time_since_last < self.min_recommendation_interval:
-                remaining_seconds = (self.min_recommendation_interval - time_since_last).total_seconds()
-                return NoWork(f"Not enough time passed since last recommendation ({remaining_seconds:.1f}s remaining)")
-        
-        # Check if there's context in the queue
+            d = datetime.now() - self.last_recommendation_time
+            if d < self.min_recommendation_interval:
+                rem = (self.min_recommendation_interval - d).total_seconds()
+                return NoWork(f"Not enough time since last recommendation ({rem:.1f}s remaining)")
         if len(self.context_queue) == 0:
             return NoWork("No new user context in queue")
-        
-        # Process one context from queue
-        context_data = self.context_queue.popleft()
-        
-        # Sense phase: Gather context
+        ctx = self.context_queue.popleft()
         self.sense(
-            time_of_day=context_data['time_of_day'],
-            weather=context_data['weather'],
-            temperature=context_data['temperature']
+            time_of_day=ctx.get("time_of_day"),
+            weather=ctx.get("weather"),
+            temperature=ctx.get("temperature"),
+            subjective=ctx.get("subjective"),
+            user_profile=ctx.get("user_profile"),
         )
-        
-        # Think and Act phase: Generate recommendation
-        recommended_coffee = self.think()
-        
-        # Update tracking
+        rec = self.think()
         self.last_recommendation_time = datetime.now()
-        self.pending_recommendation = recommended_coffee
-        
-        return recommended_coffee
-    
-    def learn(self, coffee, rating):
-        """
-        LEARN phase: Update agent's knowledge based on feedback
-        
-        Args:
-            coffee: The coffee that was recommended
-            rating: User rating (1-5)
-        """
-        reward = rating  # Map rating directly to reward (1-5 scale)
-        state = self.current_context
-        
-        if self.strategy == 'qlearning':
-            # Q-learning update
-            current_q = self.q_table[state][coffee]
-            
-            # For next state, use the same context (simplified)
-            # In a more complex scenario, next state could be different
-            next_state = state
-            max_next_q = max([self.q_table[next_state][c] for c in self.coffees], default=0)
-            
-            # Q-learning update rule
-            new_q = current_q + self.learning_rate * (reward + self.discount_factor * max_next_q - current_q)
-            self.q_table[state][coffee] = new_q
-            
-        elif self.strategy == 'thompson':
-            # Update Beta distribution parameters
-            # Normalize rating to [0, 1] for Beta distribution
-            normalized_rating = (rating - 1) / 4.0  # Maps 1-5 to 0-1
-            
-            # Update alpha and beta based on success/failure
-            # Higher rating = more success
-            self.alpha[coffee] += normalized_rating
-            self.beta[coffee] += (1 - normalized_rating)
-            
-        elif self.strategy == 'ucb':
-            # Update UCB statistics
-            self.action_counts[coffee] += 1
-            self.action_rewards[coffee].append(rating)
+        self.pending_recommendation = rec
+        return rec
+
+    def learn(self, coffee: str, rating: int) -> None:
+        reward = float(rating)
+        state = self.current_context or "default"
+        s = str(state)
+
+        if self.strategy == "qlearning":
+            current_q = float(self.q_table[s][coffee])
+            next_s = s
+            mx = max([float(self.q_table[next_s][a]) for a in self.coffees], default=0.0)
+            self.q_table[s][coffee] = current_q + self.learning_rate * (
+                reward + self.discount_factor * mx - current_q
+            )
+        elif self.strategy == "thompson":
+            nrm = (rating - 1) / 4.0
+            self.alpha[coffee] = self.alpha.get(coffee, 1.0) + nrm
+            self.beta[coffee] = self.beta.get(coffee, 1.0) + (1.0 - nrm)
+        elif self.strategy == "ucb":
+            self.action_counts[coffee] = self.action_counts.get(coffee, 0) + 1
+            self.action_rewards.setdefault(coffee, []).append(float(rating))
             self.total_pulls += 1
-        
-        # Update statistics
-        self.interaction_history.append({
-            'coffee': coffee,
-            'rating': rating,
-            'reward': reward,
-            'context': state,
-            'timestamp': datetime.now().isoformat()
-        })
+
+        self.interaction_history.append(
+            {
+                "coffee": coffee,
+                "rating": int(rating),
+                "reward": float(reward),
+                "context": s,
+                "ml_state": self.current_ml_state,
+                "subjective": self.current_subjective.to_dict(),
+                "candidates": list(self._candidate_coffees),
+                "cosine_scores": dict(self.last_cosine_scores),
+                "need_vector": self.last_need_vector,
+                "timestamp": datetime.now().isoformat(),
+            }
+        )
         self.total_interactions += 1
-        
-        # Update best coffee
         if rating > self.best_rating:
-            self.best_rating = rating
+            self.best_rating = float(rating)
             self.best_coffee = coffee
-        
-        # Clear pending recommendation after learning
         if self.pending_recommendation == coffee:
             self.pending_recommendation = None
-    
-    def get_statistics(self):
-        """Get agent statistics"""
-        avg_rating = np.mean([h['rating'] for h in self.interaction_history]) if self.interaction_history else 0
-        
-        coffee_stats = {}
-        for coffee in self.coffees:
-            coffee_ratings = [h['rating'] for h in self.interaction_history if h['coffee'] == coffee]
-            if coffee_ratings:
-                coffee_stats[coffee] = {
-                    'count': len(coffee_ratings),
-                    'avg_rating': np.mean(coffee_ratings),
-                    'total_rating': sum(coffee_ratings)
+
+        rec_v = self.coffee_items.get(coffee)
+        cvec: Optional[List[float]] = None
+        if rec_v is not None:
+            cvec = [float(x) for x in coffee_to_vector(rec_v).tolist()]
+
+        try:
+            log_interaction(
+                {
+                    "time_of_day": (self._last_sense or {}).get("time_of_day"),
+                    "weather": (self._last_sense or {}).get("weather"),
+                    "temperature_c": (self._last_sense or {}).get("temperature_c"),
+                    "sleep_hours": self.current_subjective.sleep_hours,
+                    "fatigue": self.current_subjective.fatigue,
+                    "lactose_intolerance": self.current_subjective.lactose_intolerance,
+                    "social_battery": self.current_subjective.social_battery,
+                    "context_key": s,
+                    "ml_state_category": self.current_ml_state,
+                    "need_vector": self.last_need_vector,
+                    "recommended_coffee": coffee,
+                    "recommended_coffee_vector": cvec,
+                    "candidates": self._candidate_coffees,
+                    "cosine_scores": self.last_cosine_scores,
+                    "rating": int(rating),
+                    "reward": float(reward),
+                    "strategy": self.strategy,
+                },
+                db_path=self._db_path,
+            )
+        except (sqlite3.OperationalError, OSError) as e:
+            print(f"SQLite log failed: {e}")
+
+    def get_statistics(self) -> Dict[str, Any]:
+        av = np.mean([h["rating"] for h in self.interaction_history]) if self.interaction_history else 0
+        coffee_stats: Dict[str, Dict[str, Any]] = {}
+        for c in self.coffees:
+            rts = [h["rating"] for h in self.interaction_history if h.get("coffee") == c]
+            if rts:
+                coffee_stats[c] = {
+                    "count": len(rts),
+                    "avg_rating": float(np.mean(rts)),
+                    "total_rating": float(sum(rts)),
                 }
-        
         return {
-            'total_interactions': self.total_interactions,
-            'average_rating': avg_rating,
-            'best_coffee': self.best_coffee,
-            'best_rating': self.best_rating,
-            'coffee_stats': coffee_stats
+            "total_interactions": self.total_interactions,
+            "average_rating": float(av) if self.interaction_history else 0.0,
+            "best_coffee": self.best_coffee,
+            "best_rating": self.best_rating,
+            "coffee_stats": coffee_stats,
         }
-    
-    def get_q_table_df(self):
-        """Convert Q-table to pandas DataFrame for visualization"""
+
+    def get_q_table_df(self) -> pd.DataFrame:
         if not self.q_table:
             return pd.DataFrame()
-        
-        states = list(self.q_table.keys())
-        data = {}
+        states = [k for k in self.q_table]
+        if not states:
+            return pd.DataFrame()
+        data: Dict[str, List[float]] = {}
         for coffee in self.coffees:
-            data[coffee] = [self.q_table[state][coffee] for state in states]
-        
-        df = pd.DataFrame(data, index=states)
-        return df
-    
-    def save_state(self, filepath='agent_state.json'):
-        """Save agent state to file"""
-        state = {
-            'q_table': {str(k): dict(v) for k, v in self.q_table.items()},
-            'interaction_history': self.interaction_history,
-            'total_interactions': self.total_interactions,
-            'best_coffee': self.best_coffee,
-            'best_rating': self.best_rating,
-            'strategy': self.strategy,
-            'use_context': self.use_context
+            data[coffee] = [float(self.q_table[st].get(coffee, 0.0)) for st in states]  # type: ignore[union-attr, arg-type]
+        return pd.DataFrame(data, index=states)
+
+    def save_state(self, filepath: str = "agent_state.json") -> None:
+        state: Dict[str, Any] = {
+            "q_table": {str(k): dict(v) for k, v in self.q_table.items()},
+            "interaction_history": self.interaction_history,
+            "total_interactions": self.total_interactions,
+            "best_coffee": self.best_coffee,
+            "best_rating": self.best_rating,
+            "strategy": self.strategy,
+            "use_context": self.use_context,
+            "use_subjective": self.use_subjective,
+            "use_hybrid": self.use_hybrid,
+            "coffees": self.coffees,
         }
-        
-        if self.strategy == 'thompson':
-            state['alpha'] = self.alpha
-            state['beta'] = self.beta
-        elif self.strategy == 'ucb':
-            state['action_counts'] = self.action_counts
-            state['action_rewards'] = self.action_rewards
-            state['total_pulls'] = self.total_pulls
-        
-        with open(filepath, 'w') as f:
+        if self.strategy == "thompson":
+            state["alpha"] = self.alpha
+            state["beta"] = self.beta
+        elif self.strategy == "ucb":
+            state["action_counts"] = self.action_counts
+            state["action_rewards"] = {k: v for k, v in self.action_rewards.items()}
+            state["total_pulls"] = self.total_pulls
+        with open(filepath, "w", encoding="utf-8") as f:
             json.dump(state, f, indent=2)
-    
-    def load_state(self, filepath='agent_state.json'):
-        """Load agent state from file"""
+
+    def load_state(self, filepath: str = "agent_state.json") -> bool:
         if not os.path.exists(filepath):
             return False
-        
-        with open(filepath, 'r') as f:
+        with open(filepath, encoding="utf-8") as f:
             state = json.load(f)
-        
         self.q_table = defaultdict(lambda: defaultdict(float))
-        for k, v in state.get('q_table', {}).items():
+        for k, v in state.get("q_table", {}).items():
             self.q_table[k] = defaultdict(float, v)
-        
-        self.interaction_history = state.get('interaction_history', [])
-        self.total_interactions = state.get('total_interactions', 0)
-        self.best_coffee = state.get('best_coffee')
-        self.best_rating = state.get('best_rating', 0)
-        
-        if self.strategy == 'thompson' and 'alpha' in state:
-            self.alpha = state['alpha']
-            self.beta = state['beta']
-        elif self.strategy == 'ucb' and 'action_counts' in state:
-            self.action_counts = state['action_counts']
-            self.action_rewards = {k: v for k, v in state.get('action_rewards', {}).items()}
-            self.total_pulls = state.get('total_pulls', 0)
-        
+        self.interaction_history = state.get("interaction_history", [])
+        self.total_interactions = int(state.get("total_interactions", 0))
+        self.best_coffee = state.get("best_coffee")
+        self.best_rating = float(state.get("best_rating", 0) or 0)
+        if state.get("use_subjective") is not None:
+            self.use_subjective = bool(state.get("use_subjective", True))
+        if state.get("use_hybrid") is not None:
+            self.use_hybrid = bool(state.get("use_hybrid", True))
+        if self.strategy == "thompson" and "alpha" in state:
+            self.alpha = {k: float(v) for k, v in state["alpha"].items()}  # type: ignore[union-attr]
+            self.beta = {k: float(v) for k, v in state["beta"].items()}  # type: ignore[union-attr]
+            for c in self.coffees:
+                self.alpha.setdefault(c, 1.0)
+                self.beta.setdefault(c, 1.0)
+        elif self.strategy == "ucb" and "action_counts" in state:
+            self.action_counts = {k: int(v) for k, v in state["action_counts"].items()}  # type: ignore[union-attr, arg-type]
+            self.action_rewards = {k: [float(x) for x in v] for k, v in state.get("action_rewards", {}).items()}
+            self.total_pulls = int(state.get("total_pulls", 0))
+            for c in self.coffees:
+                self.action_counts.setdefault(c, 0)
+                self.action_rewards.setdefault(c, [])
         return True
-

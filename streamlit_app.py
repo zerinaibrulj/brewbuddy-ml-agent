@@ -1,139 +1,319 @@
 """
-BrewBuddy - AI Agent for Personalized Coffee Recommendations
-Streamlit Application with Q-Learning and Context-Aware Recommendations
+BrewBuddy - AI + ML hybrid coffee recommender. Modern Streamlit UI.
 """
 
-import streamlit as st
+from __future__ import annotations
+
+import os
+from typing import Optional
+
 import pandas as pd
-import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
-from datetime import datetime
-import json
-import os
-from brewbuddy_agent import BrewBuddyAgent, NoWork
-from background_worker import BackgroundWorker
+import streamlit as st
 from PIL import Image
 
-# Page configuration
+from background_worker import BackgroundWorker
+from brewbuddy_agent import BrewBuddyAgent, NoWork
+from brewbuddy_data.database import get_user_profile, init_db, save_user_profile
+
+# —— Theme: premium dark, warm gold / espresso accents ——
 st.set_page_config(
-    page_title="BrewBuddy AI ☕",
+    page_title="BrewBuddy",
     page_icon="☕",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="expanded",
 )
 
-# Custom CSS for professional styling
-st.markdown("""
-<style>
-    .main-header {
-        font-size: 7.5rem;
-        font-weight: 900;
-        color: #000000;
-        margin-bottom: 0.5rem;
-        margin-top: 0;
-        line-height: 1.1;
-        letter-spacing: -0.015em;
-        font-family: 'Segoe UI', 'Helvetica Neue', 'Arial', sans-serif;
-        text-align: center;
-    }
-    .sub-header {
-        font-size: 1.2rem;
-        color: #666;
-        margin-bottom: 2rem;
-        margin-top: 0;
-        text-align: center;
-    }
-    .coffee-card {
-        background: linear-gradient(135deg, #f5f5f5 0%, #ffffff 100%);
-        border-radius: 15px;
-        padding: 2rem;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        margin: 1rem 0;
-    }
-    .metric-card {
-        background: white;
-        border-radius: 10px;
-        padding: 1.5rem;
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-        text-align: center;
-    }
-    .stButton>button {
-        width: 100%;
-        border-radius: 10px;
-        height: 3rem;
-        font-size: 1.1rem;
-        font-weight: 600;
-    }
-</style>
-""", unsafe_allow_html=True)
+ACCENT = "#d4a674"
+ACCENT2 = "#b86b3a"
+PLOT_FONT = "#e2ddd6"
+PLOT_MUTED = "#5c5a55"
 
-# Initialize session state
-if 'agent' not in st.session_state:
-    # Define coffee options
-    coffee_list = [
-        "Espresso", "Cappuccino", "Latte", "Americano", 
-        "Mocha", "Macchiato", "Flat White", "Cortado",
-        "Cold Brew", "Iced Coffee", "Frappuccino", "Decaf"
-    ]
-    
-    # Initialize agent
+
+def _apply_plot_theme(fig: go.Figure) -> go.Figure:
+    fig.update_layout(
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(14, 14, 20, 0.85)",
+        font=dict(color=PLOT_FONT, family="ui-sans-serif, system-ui, sans-serif", size=12),
+        title_font=dict(size=15, color=ACCENT),
+        xaxis=dict(
+            gridcolor="rgba(212, 166, 116, 0.12)", zerolinecolor="rgba(255,255,255,0.05)", showgrid=True
+        ),
+        yaxis=dict(
+            gridcolor="rgba(212, 166, 116, 0.12)", zerolinecolor="rgba(255,255,255,0.05)", showgrid=True
+        ),
+    )
+    return fig
+
+
+# Inject global styles (Outfit for UI, Fraunces for display)
+st.markdown(
+    f"""
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,700;1,9..144,500&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+    :root {{
+        --bb-bg: #070708;
+        --bb-surface: rgba(18, 18, 24, 0.75);
+        --bb-surface2: rgba(28, 28, 36, 0.9);
+        --bb-border: rgba(212, 166, 116, 0.18);
+        --bb-glow: rgba(212, 166, 116, 0.12);
+        --bb-text: #ece8e2;
+        --bb-text-muted: #8a8680;
+        --bb-accent: {ACCENT};
+        --bb-accent-deep: {ACCENT2};
+        --bb-radius: 16px;
+        --bb-radius-sm: 10px;
+    }}
+    .stApp {{
+        background: var(--bb-bg) !important;
+        background-image:
+            radial-gradient(ellipse 120% 80% at 0% 0%, rgba(184, 107, 58, 0.14) 0%, transparent 50%),
+            radial-gradient(ellipse 100% 60% at 100% 0%, rgba(90, 70, 120, 0.1) 0%, transparent 45%),
+            radial-gradient(ellipse 60% 40% at 50% 100%, rgba(30, 28, 32, 1) 0%, #070708 100%) !important;
+    }}
+    #MainMenu {{visibility: hidden;}}
+    footer {{visibility: hidden;}}
+    header[data-testid="stHeader"] {{
+        background: rgba(7,7,8,0.6) !important;
+        backdrop-filter: blur(10px) !important;
+    }}
+    .block-container {{
+        padding-top: 1.25rem;
+        max-width: 1200px;
+    }}
+    /* Typography */
+    h1, h2, h3, .stMarkdown p, .stText {{ font-family: 'Outfit', system-ui, sans-serif !important; color: var(--bb-text) !important; }}
+    p {{ color: var(--bb-text-muted) !important; line-height: 1.6; }}
+    .bb-display {{
+        font-family: 'Fraunces', Georgia, serif !important;
+        font-weight: 600;
+        letter-spacing: -0.02em;
+    }}
+    /* Hero */
+    .bb-hero {{
+        text-align: center;
+        padding: 0.5rem 0 1.5rem 0;
+        border-bottom: 1px solid var(--bb-border);
+        margin-bottom: 1.75rem;
+    }}
+    .bb-hero-title {{
+        font-family: 'Fraunces', Georgia, serif;
+        font-size: clamp(2.4rem, 5vw, 3.2rem);
+        font-weight: 700;
+        background: linear-gradient(120deg, #f0e4d4 0%, {ACCENT} 45%, #8b5a3a 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        margin: 0 0 0.35rem 0;
+    }}
+    .bb-hero-sub {{
+        font-family: 'Outfit', sans-serif;
+        font-size: 1.05rem;
+        font-weight: 400;
+        color: var(--bb-text-muted) !important;
+        max-width: 32rem;
+        margin: 0 auto;
+    }}
+    .bb-pill-row {{
+        display: flex; flex-wrap: wrap; justify-content: center; gap: 0.5rem; margin-top: 1.1rem;
+    }}
+    .bb-pill {{
+        font-family: 'Outfit', sans-serif;
+        font-size: 0.72rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        color: {ACCENT};
+        border: 1px solid var(--bb-border);
+        background: var(--bb-surface);
+        padding: 0.4rem 0.75rem;
+        border-radius: 999px;
+    }}
+    /* Glass cards */
+    .bb-glass {{
+        background: var(--bb-surface);
+        border: 1px solid var(--bb-border);
+        border-radius: var(--bb-radius);
+        padding: 1.35rem 1.5rem;
+        box-shadow: 0 0 0 1px var(--bb-glow), 0 24px 48px -24px rgba(0,0,0,0.5);
+    }}
+    .bb-glass-tight {{ padding: 1rem 1.15rem; border-radius: var(--bb-radius-sm); }}
+    .bb-section-label {{
+        font-size: 0.68rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        color: {ACCENT};
+        margin-bottom: 0.5rem;
+        font-family: 'Outfit', sans-serif;
+    }}
+    .bb-ctx-prel {{
+        font-size: 0.78rem; color: var(--bb-text-muted) !important;
+        line-height: 1.5;
+        word-break: break-word;
+        max-height: 3.2em; overflow: hidden;
+    }}
+    .bb-ml-badge {{
+        display: inline-block;
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: #1a1816;
+        background: linear-gradient(120deg, {ACCENT} 0%, #c9a07a 100%);
+        padding: 0.25rem 0.6rem;
+        border-radius: 6px;
+        text-transform: capitalize;
+    }}
+    /* Product card */
+    .bb-drink-name {{
+        font-family: 'Fraunces', Georgia, serif;
+        font-size: 2rem;
+        text-align: center;
+        color: #f2ebe3 !important;
+        margin: 0.5rem 0 0.35rem 0;
+    }}
+    .bb-drink-desc {{
+        text-align: center;
+        font-size: 1.02rem;
+        color: var(--bb-text-muted) !important;
+    }}
+    /* Stats mini */
+    .bb-stat-num {{ font-size: 1.85rem; font-weight: 700; color: {ACCENT}; font-family: 'Fraunces', serif; }}
+    .bb-stat-label {{ font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--bb-text-muted) !important; font-weight: 600; }}
+    /* Sliders: track and thumb */
+    [data-testid="stVerticalBlock"] .stSlider label span {{ color: var(--bb-text-muted) !important; font-size: 0.85rem; }}
+    .stSlider [data-baseweb="slider"] [role="slider"] {{ background: linear-gradient(180deg, {ACCENT}, {ACCENT2}) !important; box-shadow: 0 0 0 2px #0a0a0b, 0 0 0 3px {ACCENT} !important; }}
+    .stSlider [data-baseweb="slider"] div[data-testid] {{ background: var(--bb-surface2) !important; }}
+    /* Select & inputs */
+    [data-baseweb="select"] > div {{ background: var(--bb-surface2) !important; border-color: var(--bb-border) !important; border-radius: var(--bb-radius-sm) !important; }}
+    [data-baseweb="select"] span {{ color: var(--bb-text) !important; }}
+    /* Checkboxes */
+    [data-baseweb="checkbox"] span {{ color: var(--bb-text) !important; font-size: 0.9rem; }}
+    /* Primary button */
+    .stButton>button[kind="primary"] {{
+        background: linear-gradient(120deg, {ACCENT2} 0%, {ACCENT} 100%) !important;
+        color: #0d0b09 !important;
+        border: none !important;
+        border-radius: 12px !important;
+        font-weight: 600 !important;
+        font-family: 'Outfit', sans-serif !important;
+        letter-spacing: 0.02em;
+        box-shadow: 0 4px 24px -4px rgba(180, 120, 80, 0.45) !important;
+        transition: transform 0.15s ease, box-shadow 0.2s;
+    }}
+    .stButton>button[kind="primary"]:hover {{
+        box-shadow: 0 6px 32px -2px rgba(200, 140, 90, 0.55) !important;
+    }}
+    .stButton>button[kind="secondary"] {{
+        background: var(--bb-surface2) !important;
+        color: var(--bb-text) !important;
+        border: 1px solid var(--bb-border) !important;
+        border-radius: 12px !important;
+        font-weight: 500 !important;
+    }}
+    /* Default buttons in columns */
+    .stButton>button {{ border-radius: 12px !important; font-family: 'Outfit', sans-serif !important; }}
+    /* Sidebar */
+    [data-testid="stSidebar"] {{
+        background: linear-gradient(180deg, #0a0a0d 0%, #0e0e14 100%) !important;
+        border-right: 1px solid var(--bb-border) !important;
+    }}
+    [data-testid="stSidebar"] [data-baseweb] {{ color: var(--bb-text) !important; }}
+    [data-testid="stSidebar"] h1, [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3, [data-testid="stSidebar"] p {{ color: var(--bb-text) !important; }}
+    [data-testid="stSidebar"] .stExpander details {{
+        background: var(--bb-surface) !important;
+        border: 1px solid var(--bb-border) !important;
+        border-radius: var(--bb-radius-sm) !important;
+    }}
+    [data-testid="stSidebar"] .stExpander summary p {{ font-size: 0.88rem; font-weight: 600; }}
+    .bb-sidebar-kicker {{ font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.2em; color: {ACCENT}; font-weight: 600; margin-bottom: 0.2rem; }}
+    .bb-sidebar-title {{ font-family: 'Fraunces', serif; font-size: 1.35rem; color: #f0e8e0; margin: 0 0 1.25rem 0; font-weight: 600; }}
+    /* Tabs (analytics) */
+    .stTabs [data-baseweb="tab-list"] {{ gap: 4px; background: transparent; border-bottom: 1px solid var(--bb-border) !important; padding-bottom: 4px; }}
+    .stTabs [data-baseweb="tab"] {{
+        border-radius: 8px 8px 0 0 !important;
+        color: var(--bb-text-muted) !important;
+        font-weight: 500; font-size: 0.88rem;
+    }}
+    .stTabs [aria-selected="true"] p {{ color: {ACCENT} !important; font-weight: 600; }}
+    .stTabs [data-baseweb="tab-highlight"] {{ background: linear-gradient(90deg, {ACCENT2}, {ACCENT}) !important; }}
+    /* Streamlit status boxes */
+    [data-testid="stSuccess"] {{ background: rgba(100, 180, 100, 0.12) !important; border: 1px solid rgba(120, 200, 120, 0.3) !important; border-radius: 12px !important; color: #c8e8c8 !important; }}
+    [data-testid="stInfo"] {{ background: var(--bb-surface) !important; border: 1px solid var(--bb-border) !important; border-radius: 12px !important; color: var(--bb-text) !important; }}
+    [data-baseweb="notification"] {{ display: none; }}
+    .bb-footer {{
+        text-align: center; padding: 2rem 1rem; color: var(--bb-text-muted) !important;
+        font-size: 0.78rem; letter-spacing: 0.04em;
+    }}
+    [data-testid="stExpander"] details summary {{ color: {ACCENT} !important; }}
+    /* Metric streamlit */
+    [data-testid="stMetricValue"] {{ color: {ACCENT} !important; font-family: 'Fraunces', serif !important; font-size: 1.5rem; }}
+    [data-testid="stMetricLabel"] > div {{ color: var(--bb-text-muted) !important; text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.7rem; }}
+    /* Dataframe */
+    [data-testid="stDataFrame"] {{ border: 1px solid var(--bb-border) !important; border-radius: 12px !important; overflow: hidden; }}
+    /* Divider */
+    hr {{ border-color: var(--bb-border) !important; margin: 2rem 0 !important; }}
+    .bb-sec-h {{ font-family: 'Fraunces', serif; font-size: 1.4rem; color: #e8e3dd !important; margin: 0 0 0.4rem 0; font-weight: 600; }}
+    [data-testid="stImage"] img {{
+        border-radius: 14px !important;
+        box-shadow: 0 12px 40px -12px rgba(0,0,0,0.6), 0 0 0 1px rgba(212,166,116,0.15) !important;
+    }}
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+init_db()
+if "user_profile" not in st.session_state:
+    st.session_state.user_profile = get_user_profile()
+
+if "agent" not in st.session_state:
     st.session_state.agent = BrewBuddyAgent(
-        coffees=coffee_list,
+        coffees=None,
         learning_rate=0.1,
         discount_factor=0.9,
         epsilon=0.3,
         use_context=True,
-        strategy='qlearning'
+        use_subjective=True,
+        use_hybrid=True,
+        strategy="qlearning",
     )
-    
-    # Load saved state if exists
-    if os.path.exists('agent_state.json'):
-        st.session_state.agent.load_state('agent_state.json')
+    if os.path.exists("agent_state.json"):
+        st.session_state.agent.load_state("agent_state.json")
 
-# Initialize background worker
-if 'background_worker' not in st.session_state:
-    st.session_state.background_worker = BackgroundWorker(
-        agent=st.session_state.agent,
-        tick_interval=2.0  # Call tick() every 2 seconds
-    )
+if "background_worker" not in st.session_state:
+    st.session_state.background_worker = BackgroundWorker(agent=st.session_state.agent, tick_interval=2.0)
     st.session_state.background_worker.start()
 
-if 'current_recommendation' not in st.session_state:
+if "current_recommendation" not in st.session_state:
     st.session_state.current_recommendation = None
-
-if 'last_rating' not in st.session_state:
+if "last_rating" not in st.session_state:
     st.session_state.last_rating = None
-
-if 'worker_status' not in st.session_state:
+if "worker_status" not in st.session_state:
     st.session_state.worker_status = None
-
-if 'last_pending_recommendation' not in st.session_state:
+if "last_pending_recommendation" not in st.session_state:
     st.session_state.last_pending_recommendation = None
 
-# Coffee descriptions for better UX
 COFFEE_DESCRIPTIONS = {
-    "Espresso": "Strong, concentrated coffee with rich flavor",
-    "Cappuccino": "Espresso with steamed milk and foam",
-    "Latte": "Smooth espresso with lots of steamed milk",
-    "Americano": "Espresso diluted with hot water",
-    "Mocha": "Chocolate-flavored espresso drink",
-    "Macchiato": "Espresso with a dollop of foamed milk",
-    "Flat White": "Espresso with microfoam, stronger than latte",
-    "Cortado": "Equal parts espresso and warm milk",
-    "Cold Brew": "Smooth, cold-steeped coffee",
-    "Iced Coffee": "Chilled coffee served over ice",
-    "Frappuccino": "Blended iced coffee drink",
-    "Decaf": "Decaffeinated coffee option"
+    "Espresso": "Intense, concentrated, and unapologetically bold.",
+    "Cappuccino": "Equal parts espresso, steamed milk, and airy foam.",
+    "Latte": "Silky steamed milk over a base of smooth espresso.",
+    "Americano": "Espresso opened up with hot water. Clean and direct.",
+    "Mocha": "A gentle bridge between coffee and dark chocolate.",
+    "Macchiato": "Espresso “marked” with a touch of foamed milk.",
+    "Flat White": "Ristretto and velvety microfoam, compact and strong.",
+    "Cortado": "Espresso and warm milk, cut in balance.",
+    "Cold Brew": "Slow-steeped, smooth, and naturally low in acidity.",
+    "Iced Coffee": "Chilled, refreshing, and ready to go.",
+    "Frappuccino": "Blended, cool, and indulgent.",
+    "Decaf": "The ritual without the buzz.",
 }
 
-# Coffee name to image file mapping
-def get_coffee_image_path(coffee_name):
-    """Map coffee name to image file path"""
-    # Normalize coffee name to match file naming (lowercase, handle spaces)
+
+def get_coffee_image_path(coffee_name: str):
     normalized = coffee_name.lower()
-    
-    # Map coffee names to their image files
     image_mapping = {
         "espresso": "espresso.jpg",
         "cappuccino": "cappuccino.jpg",
@@ -146,420 +326,441 @@ def get_coffee_image_path(coffee_name):
         "cold brew": "cold brew.jpg",
         "iced coffee": "iced coffee.jpg",
         "frappuccino": "frappuccino.jpg",
-        "decaf": "decaf.webp"
+        "decaf": "decaf.webp",
     }
-    
     image_file = image_mapping.get(normalized)
     if image_file and os.path.exists(f"images/{image_file}"):
         return f"images/{image_file}"
     return None
 
-# Main Header with Logo - Centered Layout
-header_col1, header_col2, header_col3 = st.columns([1, 2, 1])
-with header_col1:
-    # Logo on the left
-    if os.path.exists("images/coffee1.png"):
-        logo_image = Image.open("images/coffee1.png")
-        st.image(logo_image, width=80)
-    else:
-        st.write("")  # Placeholder if image not found
 
-with header_col2:
-    # Centered title
-    st.markdown('<h1 class="main-header">BrewBuddy AI</h1>', unsafe_allow_html=True)
-    st.markdown('<p class="sub-header">Your Intelligent Barista - Learning Your Coffee Preferences</p>', unsafe_allow_html=True)
-
-with header_col3:
-    st.write("")  # Spacer for balance
-
-# Sidebar for configuration
+# —— Sidebar (grouped) ——
 with st.sidebar:
-    st.header("⚙️ Agent Configuration")
-    
-    # Strategy selection
-    strategy = st.selectbox(
-        "Learning Strategy",
-        ["qlearning", "thompson", "ucb"],
-        index=0,
-        help="Q-Learning: Full RL with states. Thompson Sampling: Bayesian MAB. UCB: Upper Confidence Bound"
-    )
-    
-    if st.session_state.agent.strategy != strategy:
-        st.session_state.agent.strategy = strategy
-        if strategy == 'thompson':
-            st.session_state.agent.alpha = {coffee: 1.0 for coffee in st.session_state.agent.coffees}
-            st.session_state.agent.beta = {coffee: 1.0 for coffee in st.session_state.agent.coffees}
-        elif strategy == 'ucb':
-            st.session_state.agent.action_counts = {coffee: 0 for coffee in st.session_state.agent.coffees}
-            st.session_state.agent.action_rewards = {coffee: [] for coffee in st.session_state.agent.coffees}
-            st.session_state.agent.total_pulls = 0
-    
-    # Hyperparameters
-    st.subheader("Hyperparameters")
-    learning_rate = st.slider("Learning Rate (α)", 0.01, 0.5, 0.1, 0.01)
-    discount_factor = st.slider("Discount Factor (γ)", 0.1, 0.99, 0.9, 0.01)
-    epsilon = st.slider("Exploration Rate (ε)", 0.0, 1.0, 0.3, 0.05)
-    
-    st.session_state.agent.learning_rate = learning_rate
-    st.session_state.agent.discount_factor = discount_factor
-    st.session_state.agent.epsilon = epsilon
-    
-    # Context settings
-    st.subheader("Context Settings")
-    use_context = st.checkbox("Use Context-Aware States", value=True)
-    st.session_state.agent.use_context = use_context
-    
-    # Manual context input
-    if use_context:
-        time_of_day = st.selectbox(
-            "Time of Day",
-            ["morning", "afternoon", "evening", "night"],
-            index=0
+    st.markdown('<p class="bb-sidebar-kicker">Brewbuddy</p>', unsafe_allow_html=True)
+    st.markdown('<p class="bb-sidebar-title">Control room</p>', unsafe_allow_html=True)
+
+    with st.expander("Learning engine", expanded=True):
+        strategy = st.selectbox(
+            "Policy",
+            ["qlearning", "thompson", "ucb"],
+            index=0,
+            help="Q-learning: value iteration over state–action. Thompson/UCB: multi-armed bandit.",
+            label_visibility="visible",
         )
-        weather = st.selectbox(
-            "Weather",
-            [None, "sunny", "rainy", "cloudy", "cold", "hot"],
-            index=0
+        if st.session_state.agent.strategy != strategy:
+            st.session_state.agent.strategy = strategy
+            if strategy == "thompson":
+                st.session_state.agent.alpha = {c: 1.0 for c in st.session_state.agent.coffees}
+                st.session_state.agent.beta = {c: 1.0 for c in st.session_state.agent.coffees}
+            elif strategy == "ucb":
+                st.session_state.agent.action_counts = {c: 0 for c in st.session_state.agent.coffees}
+                st.session_state.agent.action_rewards = {c: [] for c in st.session_state.agent.coffees}
+                st.session_state.agent.total_pulls = 0
+        st.caption("Hyperparameters")
+        learning_rate = st.slider("Learning rate (α)", 0.01, 0.5, 0.1, 0.01, label_visibility="visible")
+        discount_factor = st.slider("Discount (γ)", 0.1, 0.99, 0.9, 0.01, label_visibility="visible")
+        epsilon = st.slider("Exploration (ε)", 0.0, 1.0, 0.3, 0.05, label_visibility="visible")
+        st.session_state.agent.learning_rate = learning_rate
+        st.session_state.agent.discount_factor = discount_factor
+        st.session_state.agent.epsilon = epsilon
+
+    with st.expander("Environment", expanded=True):
+        use_context = st.toggle("Context-aware state keys", value=True)
+        st.session_state.agent.use_context = use_context
+        if use_context:
+            c1, c2 = st.columns(2)
+            with c1:
+                time_of_day = st.selectbox("Time", ["morning", "afternoon", "evening", "night"], index=0)
+            with c2:
+                weather = st.selectbox("Sky", [None, "sunny", "rainy", "cloudy", "cold", "hot"], index=0, format_func=lambda w: w or "—")
+            temperature = st.slider("Temperature (°C)", 0, 40, 20, 1)
+        else:
+            time_of_day, weather, temperature = None, None, None
+
+    with st.expander("How you feel", expanded=True):
+        use_subjective = st.toggle("Include internal state in features", value=True)
+        st.session_state.agent.use_subjective = use_subjective
+        f1, f2 = st.columns(2)
+        with f1:
+            sleep_h = st.slider("Sleep (h)", 0.0, 12.0, 7.0, 0.5, help="Last 24h")
+        with f2:
+            fatigue = st.slider("Fatigue", 1, 10, 5, 1, help="1 = fresh, 10 = drained")
+        lactose = st.checkbox("Lactose intolerant (prefer low dairy load)", value=False)
+        social = st.radio("Social battery", ["Full", "Empty"], horizontal=True, help="Affects need vector (comfort).")
+
+    with st.expander("Taste profile", expanded=False):
+        p_strong = st.slider(
+            "Likes strong / bold caffeine",
+            0.0,
+            1.0,
+            st.session_state.user_profile.get("pref_strong_caffeine", 0.5),
+            0.05,
         )
-        temperature = st.slider("Temperature (°C)", 0, 40, 20, 1)
-    else:
-        time_of_day = None
-        weather = None
-        temperature = None
-    
+        p_lf = st.toggle("Prefers lactose-free / no dairy in drinks", value=bool(st.session_state.user_profile.get("pref_lactose_free", 0)))
+        p_bitter = st.slider("Likes mild / low bitterness", 0.0, 1.0, st.session_state.user_profile.get("pref_low_bitterness", 0.5), 0.05)
+        c_save, _ = st.columns([1, 0.1])
+        with c_save:
+            if st.button("Save profile to SQLite", use_container_width=True, type="secondary"):
+                save_user_profile(p_strong, 1 if p_lf else 0, p_bitter)
+                st.session_state.user_profile = get_user_profile()
+                st.success("Profile saved")
+        st.session_state.user_profile = {
+            "pref_strong_caffeine": p_strong,
+            "pref_lactose_free": 1 if p_lf else 0,
+            "pref_low_bitterness": p_bitter,
+        }
+
+    with st.expander("Hybrid model", expanded=False):
+        use_hybrid = st.toggle("Classify state → cosine shortlist → policy", value=True, help="Matches `state_category` in the database.")
+        st.session_state.agent.use_hybrid = use_hybrid
+
     st.divider()
-    
-    # Save/Load
-    if st.button("💾 Save Agent State"):
-        st.session_state.agent.save_state()
-        st.success("Agent state saved!")
-    
-    if st.button("🔄 Reset Agent"):
-        coffee_list = st.session_state.agent.coffees
-        # Stop old worker
-        if 'background_worker' in st.session_state:
-            st.session_state.background_worker.stop()
-        # Create new agent
-        st.session_state.agent = BrewBuddyAgent(
-            coffees=coffee_list,
-            learning_rate=learning_rate,
-            discount_factor=discount_factor,
-            epsilon=epsilon,
-            use_context=use_context,
-            strategy=strategy
-        )
-        # Create new worker with new agent
-        st.session_state.background_worker = BackgroundWorker(
-            agent=st.session_state.agent,
-            tick_interval=2.0
-        )
-        st.session_state.background_worker.start()
-        st.session_state.current_recommendation = None
-        st.rerun()
+    b1, b2 = st.columns(2)
+    with b1:
+        if st.button("Save state", use_container_width=True, type="secondary", help="agent_state.json"):
+            st.session_state.agent.save_state()
+            st.toast("Agent state saved")
+    with b2:
+        if st.button("Reset", use_container_width=True, type="primary"):
+            if "background_worker" in st.session_state:
+                st.session_state.background_worker.stop()
+            st.session_state.agent = BrewBuddyAgent(
+                coffees=None,
+                learning_rate=learning_rate,
+                discount_factor=discount_factor,
+                epsilon=epsilon,
+                use_context=use_context,
+                use_subjective=use_subjective,
+                use_hybrid=use_hybrid,
+                strategy=strategy,
+            )
+            st.session_state.background_worker = BackgroundWorker(
+                agent=st.session_state.agent,
+                tick_interval=2.0,
+            )
+            st.session_state.background_worker.start()
+            st.session_state.current_recommendation = None
+            st.rerun()
 
-# Main content area
-col1, col2 = st.columns([2, 1])
+# —— Main hero ——
+h_left, h_mid, h_right = st.columns([0.2, 2, 0.2])
+with h_left:
+    if os.path.exists("images/coffee1.png"):
+        st.image(Image.open("images/coffee1.png"), width=64)
+    else:
+        st.write("")
+with h_mid:
+    st.markdown(
+        """
+    <div class="bb-hero">
+        <div class="bb-hero-title">BrewBuddy</div>
+        <p class="bb-hero-sub">Subjective state · learned policy · your perfect cup. Intelligence that adapts to how you really feel, not just the weather.</p>
+        <div class="bb-pill-row">
+            <span class="bb-pill">Classification</span>
+            <span class="bb-pill">Content match</span>
+            <span class="bb-pill">Bandit / Q-learning</span>
+        </div>
+    </div>""",
+        unsafe_allow_html=True,
+    )
+with h_right:
+    w = st.session_state.background_worker.get_status()
+    if w["running"]:
+        st.caption("Worker live")
+    else:
+        st.caption("—")
 
-with col1:
-    st.header("🎯 Get Your Coffee Recommendation")
-    
-    # Display background worker status
-    worker_status = st.session_state.background_worker.get_status()
-    if worker_status['running']:
-        st.success(f"🔄 Background worker running (ticks: {worker_status['tick_count']})")
-    
-    # Sense phase: Gather context (for display purposes)
-    context = st.session_state.agent.sense(
+# —— Body ——
+main, aside = st.columns([1.55, 0.9])
+
+with main:
+    st.markdown(
+        """
+        <p class="bb-section-label">Intelligence</p>
+        <p class="bb-sec-h" style="margin:0 0 1rem 0;">Get your next recommendation</p>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    subjective_payload = {
+        "sleep_hours": float(sleep_h) if use_subjective else 7.0,
+        "fatigue": int(fatigue) if use_subjective else 5,
+        "lactose_intolerance": bool(lactose) if use_subjective else False,
+        "social_battery": str(social) if use_subjective else "Full",
+    }
+    profile = st.session_state.user_profile
+    st.session_state.agent.sense(
         time_of_day=time_of_day if use_context else None,
         weather=weather if use_context else None,
-        temperature=temperature if use_context else None
+        temperature=temperature if use_context else None,
+        subjective=subjective_payload if use_subjective else None,
+        user_profile=profile,
     )
-    
-    if use_context:
-        st.info(f"📊 Current Context: **{context.replace('_', ' ').title()}**")
-    
-    # Request recommendation button - adds context to queue instead of directly calling act()
-    if st.button("☕ Request Coffee Recommendation", type="primary", use_container_width=True):
-        # Add context request to queue for background worker to process
+    ag = st.session_state.agent
+    cand = ", ".join(ag._candidate_coffees[:3]) if use_hybrid and ag._candidate_coffees else ""
+    ctx_short = (ag.current_context or "—")[:200]
+    st.markdown(
+        f"""
+        <div class="bb-glass">
+            <div class="bb-section-label">Live context</div>
+            <p class="bb-ctx-prel">{ctx_short}{"…" if (ag.current_context and len(ag.current_context) > 200) else ""}</p>
+            <p style="margin:0.75rem 0 0 0; display:flex; align-items:center; gap:0.6rem; flex-wrap:wrap;">
+                <span class="bb-ml-badge">{ag.current_ml_state.replace("_", " ")}</span>
+                <span style="color:#8a8680;font-size:0.8rem;">Top matches: {cand or "—"}</span>
+            </p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.markdown("")
+
+    with st.expander("Engineering: need vector & cosine scores", expanded=False):
+        st.caption("Four dimensions: stimulation, comfort, dairy concern, mildness. Compares to `coffee_items` in SQLite.")
+        st.json({"need": ag.last_need_vector, "cosine": ag.last_cosine_scores or {}})
+
+    if st.button("Request recommendation", type="primary", use_container_width=True, key="btn_get"):
         st.session_state.agent.add_context_request(
             time_of_day=time_of_day if use_context else None,
             weather=weather if use_context else None,
-            temperature=temperature if use_context else None
+            temperature=temperature if use_context else None,
+            subjective=subjective_payload if use_subjective else None,
+            user_profile=profile,
         )
-        st.info("✅ Request added to queue. Background worker will process it automatically.")
+        st.info("Queued. The worker will pick this up (respects cooldown & pending rating).")
         st.rerun()
-    
-    # Check for pending recommendation in agent (source of truth)
-    # This ensures we always display the recommendation waiting for rating
+
     current_pending = st.session_state.agent.pending_recommendation
-    
-    # Detect if pending_recommendation has changed
     if current_pending != st.session_state.last_pending_recommendation:
-        # Pending recommendation changed - update UI state
-        old_pending = st.session_state.last_pending_recommendation
         st.session_state.last_pending_recommendation = current_pending
         if current_pending is not None:
-            # New recommendation available - update display
             st.session_state.current_recommendation = current_pending
             st.session_state.last_rating = None
-            # Force UI update by clearing any cached state
-            if old_pending is not None and old_pending != current_pending:
-                # Recommendation changed - ensure UI refreshes
-                pass
-    
+
+    display_coffee: Optional[str] = None
     if current_pending is not None:
-        # Use pending recommendation as the source of truth
         display_coffee = current_pending
-        # Ensure session state is in sync
         if st.session_state.current_recommendation != display_coffee:
             st.session_state.current_recommendation = display_coffee
             st.session_state.last_rating = None
     else:
-        # No pending recommendation - check for new ones from worker
         latest_result = st.session_state.background_worker.get_latest_result()
         if latest_result is not None and not isinstance(latest_result, NoWork):
-            # New recommendation available from background worker
             if st.session_state.current_recommendation != latest_result:
                 st.session_state.current_recommendation = latest_result
                 st.session_state.last_rating = None
-                display_coffee = latest_result
-            else:
-                display_coffee = st.session_state.current_recommendation
+            display_coffee = latest_result
         elif isinstance(latest_result, NoWork):
-            # Display NoWork status only if no recommendation to show
             if st.session_state.current_recommendation is None:
-                st.info(f"⏳ {latest_result.reason}")
+                st.caption(f"⏳ {latest_result.reason}")
             display_coffee = st.session_state.current_recommendation
         else:
             display_coffee = st.session_state.current_recommendation
-    
-    # Display recommendation
+    st.markdown("")
+
     if display_coffee:
         coffee_name = display_coffee
         coffee_image_path = get_coffee_image_path(coffee_name)
-        
-        # Display coffee image and information
-        # The image will update automatically when coffee_name changes
-        if coffee_image_path and os.path.exists(coffee_image_path):
-            coffee_image = Image.open(coffee_image_path)
-            st.image(coffee_image, width=400, use_container_width=True)
-        
-        st.markdown(f"""
-        <div class="coffee-card" id="coffee-{coffee_name}">
-            <h2 style="color: #8B4513; text-align: center;">{coffee_name}</h2>
-            <p style="text-align: center; color: #666; font-size: 1.1rem;">
-                {COFFEE_DESCRIPTIONS.get(coffee_name, "A delicious coffee option")}
-            </p>
+        st.markdown(
+            """
+        <div class="bb-glass" style="padding-bottom:0.5rem">
+        <div class="bb-section-label" style="margin-top:0">This round</div>
         </div>
-        """, unsafe_allow_html=True)
-        
-        # Rating interface
-        st.subheader("Rate Your Experience")
-        rating = st.slider(
-            "How much did you enjoy this coffee?",
-            min_value=1,
-            max_value=5,
-            value=3,
-            step=1,
-            key="rating_slider"
+        """,
+            unsafe_allow_html=True,
         )
-        
-        # Display rating stars
-        stars = "⭐" * rating
-        st.markdown(f"<h3 style='text-align: center;'>{stars}</h3>", unsafe_allow_html=True)
-        
-        col_btn1, col_btn2 = st.columns(2)
-        with col_btn1:
-            if st.button("✅ Submit Rating", type="primary", use_container_width=True):
-                # Learn from feedback (this will clear pending_recommendation)
-                st.session_state.agent.learn(coffee_name, rating)
+        img_c, text_c = st.columns([0.95, 1.05])
+        with img_c:
+            if coffee_image_path and os.path.exists(coffee_image_path):
+                st.image(Image.open(coffee_image_path), use_container_width=True, output_format="auto")
+        with text_c:
+            st.markdown(
+                f"""
+            <p class="bb-drink-name">{coffee_name}</p>
+            <p class="bb-drink-desc">{COFFEE_DESCRIPTIONS.get(coffee_name, "A delicious option.")}</p>
+            """,
+                unsafe_allow_html=True,
+            )
+        st.divider()
+        st.markdown("**How was it?**")
+        rating = st.select_slider(
+            "Tap to set rating",
+            options=[1, 2, 3, 4, 5],
+            value=3,
+            format_func=lambda x: f"{'⭐' * x}  {x}/5",
+            key="bb_rating",
+        )
+        r1, r2 = st.columns(2)
+        with r1:
+            if st.button("Submit & learn", type="primary", use_container_width=True, key="btn_learn"):
+                st.session_state.agent.learn(coffee_name, int(rating))
                 st.session_state.last_rating = rating
-                st.session_state.agent.save_state()  # Auto-save
-                st.success(f"Thank you! Your rating of {rating}/5 has been recorded.")
-                # Clear current recommendation and tracking to allow new one
-                # Note: agent.learn() already cleared pending_recommendation
+                st.session_state.agent.save_state()
                 st.session_state.current_recommendation = None
                 st.session_state.last_pending_recommendation = None
                 st.rerun()
-        
-        with col_btn2:
-            if st.button("🔄 Request New Recommendation", use_container_width=True):
-                # Add new context request to queue
+        with r2:
+            if st.button("Request another", type="secondary", use_container_width=True, key="btn_another"):
                 st.session_state.agent.add_context_request(
                     time_of_day=time_of_day if use_context else None,
                     weather=weather if use_context else None,
-                    temperature=temperature if use_context else None
+                    temperature=temperature if use_context else None,
+                    subjective=subjective_payload if use_subjective else None,
+                    user_profile=profile,
                 )
                 st.session_state.current_recommendation = None
-                st.info("✅ New request added to queue.")
                 st.rerun()
-    
-    # Show last interaction feedback
-    if st.session_state.last_rating and st.session_state.current_recommendation:
-        st.info(f"📝 Last rating: {st.session_state.last_rating}/5 for {st.session_state.current_recommendation}")
 
-with col2:
-    st.header("📊 Statistics")
+with aside:
+    st.markdown('<p class="bb-section-label">At a glance</p>', unsafe_allow_html=True)
+    wstat = st.session_state.background_worker.get_status()
+    if wstat["running"]:
+        st.caption(f"Autonomous ticks: **{wstat['tick_count']}**")
     stats = st.session_state.agent.get_statistics()
-    
-    # Key metrics
-    metric_col1, metric_col2 = st.columns(2)
-    with metric_col1:
-        st.metric("Total Interactions", stats['total_interactions'])
-    with metric_col2:
-        st.metric("Avg Rating", f"{stats['average_rating']:.2f}")
-    
-    if stats['best_coffee']:
-        st.success(f"🏆 Best Coffee: **{stats['best_coffee']}** ({stats['best_rating']}/5)")
+    st.markdown('<div class="bb-glass bb-glass-tight" style="margin-bottom:0.8rem;">', unsafe_allow_html=True)
+    a, b = st.columns(2)
+    with a:
+        st.metric("Session interactions", f"{stats['total_interactions']}")
+    with b:
+        st.metric("Average rating", f"{stats['average_rating']:.2f}")
+    st.markdown("</div>", unsafe_allow_html=True)
+    if stats["best_coffee"]:
+        st.markdown(
+            f"""
+        <div class="bb-glass bb-glass-tight">
+            <div class="bb-stat-label" style="margin-bottom:0.2rem;">Best so far</div>
+            <div class="bb-stat-num" style="font-size:1.2rem; color:#e8e3dd;">{stats['best_coffee']}</div>
+            <p style="margin:0.25rem 0 0 0; color:#7a7772 !important; font-size:0.85rem;">{stats['best_rating']}/5</p>
+        </div>""",
+            unsafe_allow_html=True,
+        )
+    st.markdown("")
 
-# Detailed Statistics Section
-st.divider()
-st.header("📈 Learning Progress & Analytics")
+# —— Analytics ——
+st.markdown("---")
+st.markdown(
+    '<p class="bb-section-label" style="margin-top:0.5rem;">Analytics</p><h3 class="bb-sec-h" style="font-size:1.35rem; margin:0 0 1.25rem 0;">Learning & performance</h3>',
+    unsafe_allow_html=True,
+)
 
-tab1, tab2, tab3, tab4 = st.tabs(["Q-Table", "Coffee Performance", "Learning Curve", "Context Analysis"])
+t1, t2, t3, t4 = st.tabs(["Q-Table", "By coffee", "Curve", "Context"])
 
-with tab1:
-    st.subheader("Q-Table Visualization")
-    if st.session_state.agent.strategy == 'qlearning':
+with t1:
+    st.caption("State × action value landscape (Q-learning).")
+    if st.session_state.agent.strategy == "qlearning":
         q_df = st.session_state.agent.get_q_table_df()
         if not q_df.empty:
-            # Heatmap
             fig = px.imshow(
                 q_df.T,
-                labels=dict(x="State", y="Coffee", color="Q-Value"),
+                labels=dict(x="State", y="Coffee", color="Q"),
+                color_continuous_scale=[[0, "rgba(8,8,10,0.3)"], [0.5, f"{ACCENT}88"], [1, ACCENT2]],
                 aspect="auto",
-                color_continuous_scale="YlOrBr",
-                title="Q-Table Heatmap"
             )
-            fig.update_layout(height=400)
-            st.plotly_chart(fig, use_container_width=True)
-            
-            # Table view
-            st.dataframe(q_df.style.background_gradient(cmap='YlOrBr', axis=None), use_container_width=True)
+            _apply_plot_theme(fig)
+            st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+            st.dataframe(q_df.style.format("{:.2f}").background_gradient(cmap="copper", axis=None), use_container_width=True, height=280)
         else:
-            st.info("Q-table is empty. Start getting recommendations and rating them!")
+            st.info("Interact and rate a few times to build the Q-table.")
     else:
-        st.info(f"Q-table visualization is only available for Q-Learning strategy. Current strategy: {st.session_state.agent.strategy}")
+        st.info("Switch the policy to Q-learning in the sidebar to see this view.")
 
-with tab2:
-    st.subheader("Coffee Performance Analysis")
-    stats = st.session_state.agent.get_statistics()
-    coffee_stats = stats['coffee_stats']
-    
-    if coffee_stats:
-        # Prepare data for visualization
-        coffee_names = []
-        avg_ratings = []
-        counts = []
-        
-        for coffee, data in coffee_stats.items():
-            coffee_names.append(coffee)
-            avg_ratings.append(data['avg_rating'])
-            counts.append(data['count'])
-        
-        df_perf = pd.DataFrame({
-            'Coffee': coffee_names,
-            'Average Rating': avg_ratings,
-            'Number of Tries': counts
-        })
-        
-        # Bar chart
+with t2:
+    st.caption("Average feedback per drink.")
+    s2 = st.session_state.agent.get_statistics()
+    cstats = s2["coffee_stats"]
+    if cstats:
+        names, avgs, cnts = [], [], []
+        for c, d in cstats.items():
+            names.append(c)
+            avgs.append(d["avg_rating"])
+            cnts.append(d["count"])
+        dfp = pd.DataFrame({"Coffee": names, "Avg": avgs, "N": cnts})
         fig = px.bar(
-            df_perf,
-            x='Coffee',
-            y='Average Rating',
-            color='Number of Tries',
-            color_continuous_scale="YlOrBr",
-            title="Average Rating by Coffee",
-            text='Average Rating'
+            dfp, x="Coffee", y="Avg", color="N", text="Avg",
+            color_continuous_scale=[[0, "rgba(8,8,10,0.2)"], [0.5, f"{ACCENT}99"], [1, ACCENT2]]
         )
-        fig.update_traces(texttemplate='%{text:.2f}', textposition='outside')
-        fig.update_layout(height=400, xaxis_tickangle=-45)
-        st.plotly_chart(fig, use_container_width=True)
-        
-        # Detailed table
-        st.dataframe(df_perf.sort_values('Average Rating', ascending=False), use_container_width=True)
+        _apply_plot_theme(fig)
+        fig.update_traces(texttemplate="%{text:.2f}", textposition="outside", marker_line_width=0, marker_cornerradius=4)
+        st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+        st.dataframe(dfp.sort_values("Avg", ascending=False), use_container_width=True, height=200)
     else:
-        st.info("No ratings yet. Start rating coffees to see performance analysis!")
+        st.info("Ratings will appear here.")
 
-with tab3:
-    st.subheader("Learning Curve")
-    history = st.session_state.agent.interaction_history
-    
-    if history:
-        # Prepare data
-        df_history = pd.DataFrame(history)
-        df_history['cumulative_avg'] = df_history['rating'].expanding().mean()
-        df_history['interaction'] = range(1, len(df_history) + 1)
-        
-        # Plot
+with t3:
+    h = st.session_state.agent.interaction_history
+    if h:
+        dfb = pd.DataFrame(h)
+        dfb["cumulative_avg"] = dfb["rating"].expanding().mean()
+        dfb["i"] = range(1, len(dfb) + 1)
         fig = go.Figure()
-        fig.add_trace(go.Scatter(
-            x=df_history['interaction'],
-            y=df_history['rating'],
-            mode='markers+lines',
-            name='Individual Rating',
-            marker=dict(size=8, color='lightblue')
-        ))
-        fig.add_trace(go.Scatter(
-            x=df_history['interaction'],
-            y=df_history['cumulative_avg'],
-            mode='lines',
-            name='Cumulative Average',
-            line=dict(width=3, color='orange')
-        ))
-        fig.update_layout(
-            title="Learning Progress Over Time",
-            xaxis_title="Interaction Number",
-            yaxis_title="Rating",
-            height=400,
-            hovermode='x unified'
+        fig.add_trace(
+            go.Scatter(
+                x=dfb["i"],
+                y=dfb["rating"],
+                mode="markers+lines",
+                name="Each rating",
+                line=dict(color=f"{ACCENT}66", width=1),
+                marker=dict(size=7, color=ACCENT, line=dict(width=0.5, color=ACCENT2)),
+            )
         )
-        st.plotly_chart(fig, use_container_width=True)
-        
-        # Show recent interactions
-        st.subheader("Recent Interactions")
-        recent_df = pd.DataFrame(history[-10:])[['coffee', 'rating', 'context', 'timestamp']]
-        recent_df['timestamp'] = pd.to_datetime(recent_df['timestamp']).dt.strftime('%Y-%m-%d %H:%M')
-        st.dataframe(recent_df, use_container_width=True, hide_index=True)
-    else:
-        st.info("No interaction history yet. Start rating coffees to see the learning curve!")
-
-with tab4:
-    st.subheader("Context-Aware Analysis")
-    if st.session_state.agent.use_context and st.session_state.agent.interaction_history:
-        # Group by context
-        df_context = pd.DataFrame(st.session_state.agent.interaction_history)
-        context_stats = df_context.groupby('context').agg({
-            'rating': ['mean', 'count'],
-            'coffee': lambda x: x.mode()[0] if len(x) > 0 else None
-        }).reset_index()
-        context_stats.columns = ['Context', 'Avg Rating', 'Count', 'Most Popular']
-        
-        # Visualization
-        fig = px.bar(
-            context_stats,
-            x='Context',
-            y='Avg Rating',
-            color='Count',
-            color_continuous_scale="YlOrBr",
-            title="Average Rating by Context",
-            text='Avg Rating'
+        fig.add_trace(
+            go.Scatter(
+                x=dfb["i"],
+                y=dfb["cumulative_avg"],
+                name="Cumulative",
+                line=dict(color=ACCENT, width=2.5, shape="spline"),
+            )
         )
-        fig.update_traces(texttemplate='%{text:.2f}', textposition='outside')
-        fig.update_layout(height=400, xaxis_tickangle=-45)
-        st.plotly_chart(fig, use_container_width=True)
-        
-        st.dataframe(context_stats, use_container_width=True)
+        fig.update_layout(legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0, font_size=10))
+        _apply_plot_theme(fig)
+        st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+        st.subheader("Recent")
+        keys = [k for k in ("coffee", "rating", "context", "ml_state", "subjective", "timestamp") if any(k in r for r in h[-10:])]
+        if not keys and h:
+            keys = [k for k in list(h[0].keys()) if k in h[-1]]
+        if not keys:
+            keys = ["coffee", "rating", "timestamp"]
+        cols = [c for c in keys if c in h[-1]]
+        recent = pd.DataFrame(h[-10:])[[c for c in cols]] if h and cols else None
+        if recent is not None and "timestamp" in recent.columns:
+            recent = recent.copy()
+            recent["timestamp"] = pd.to_datetime(recent["timestamp"], errors="coerce").dt.strftime("%Y-%m-%d %H:%M")
+        st.dataframe(recent, use_container_width=True, height=200, hide_index=True)
     else:
-        st.info("Context analysis requires context-aware mode and interaction history.")
+        st.info("Your learning curve starts after the first rating.")
 
-# Footer
-st.divider()
-st.markdown("""
-<div style='text-align: center; color: #666; padding: 2rem;'>
-    <p>BrewBuddy AI - Powered by Reinforcement Learning</p>
-    <p>Sense → Think → Act → Learn</p>
-</div>
-""", unsafe_allow_html=True)
+with t4:
+    dfc = st.session_state.agent
+    if dfc.use_context and dfc.interaction_history:
+        dfx = pd.DataFrame(dfc.interaction_history)
+        if "context" in dfx.columns:
+            csg = (
+                dfx.groupby("context", dropna=True)
+                .agg(rm=("rating", "mean"), c=("rating", "size"), pop=("coffee", lambda s: s.mode().iloc[0] if not s.empty and len(s.mode()) else None))
+                .reset_index()
+            )
+            if not csg.empty:
+                csg = csg.rename(columns={"context": "Context", "rm": "Avg", "c": "N", "pop": "Mode"})
+                fig = px.bar(
+                    csg, x="Context", y="Avg", color="N", text="Avg",
+                    color_continuous_scale=[[0, "rgba(5,5,8,0.2)"], [0.5, f"{ACCENT}88"], [1, ACCENT2]]
+                )
+                _apply_plot_theme(fig)
+                fig.update_traces(texttemplate="%{text:.2f}", textposition="outside", marker_cornerradius=4)
+                st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+                st.dataframe(csg, use_container_width=True, height=220)
+            else:
+                st.caption("No grouped rows yet.")
+        else:
+            st.caption("Older history had no `context` field; new runs log the full key.")
+    else:
+        st.info("Enable context and add interactions.")
 
+st.markdown(
+    f"""
+    <div class="bb-footer">
+        BrewBuddy · state classification, cosine match, and RL policy &nbsp;|&nbsp;
+        <code style="color:{PLOT_MUTED};">data/brewbuddy.db</code> &amp; <code style="color:{PLOT_MUTED};">agent_state.json</code>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)

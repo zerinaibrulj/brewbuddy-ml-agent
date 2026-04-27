@@ -13,4 +13,7 @@ env/
 
 # Project specific
 *.pkl
+data/brewbuddy.db
+data/*.db
+data/models/
 # yield_df.csv # Keep this if you want data in repo, comment out if not. Assuming keep for now as it acts as database.
