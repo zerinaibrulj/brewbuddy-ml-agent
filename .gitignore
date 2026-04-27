@@ -1,0 +1,16 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual Environment
+venv/
+env/
+.env
+
+# VS Code
+.vscode/
+
+# Project specific
+*.pkl
+# yield_df.csv # Keep this if you want data in repo, comment out if not. Assuming keep for now as it acts as database.

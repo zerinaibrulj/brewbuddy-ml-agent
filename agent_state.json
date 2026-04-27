@@ -1,0 +1,669 @@
+{
+  "q_table": {
+    "morning_moderate": {
+      "Macchiato": 0.5,
+      "Espresso": 0.0,
+      "Cappuccino": 0.0,
+      "Latte": 0.0,
+      "Americano": 0.0,
+      "Mocha": 0.0,
+      "Flat White": 0.0,
+      "Cortado": 0.0,
+      "Cold Brew": 0.0,
+      "Iced Coffee": 0.0,
+      "Frappuccino": 0.0,
+      "Decaf": 0.0
+    },
+    "night_cold_moderate": {
+      "Espresso": 0.0,
+      "Cappuccino": 0.0,
+      "Latte": 0.0,
+      "Americano": 0.0,
+      "Mocha": 0.0,
+      "Macchiato": 0.30000000000000004,
+      "Flat White": 0.0,
+      "Cortado": 0.0,
+      "Cold Brew": 0.0,
+      "Iced Coffee": 0.0,
+      "Frappuccino": 0.0,
+      "Decaf": 0.0
+    },
+    "afternoon_sunny_hot": {
+      "Espresso": 0.4,
+      "Cappuccino": 0.0,
+      "Latte": 0.0,
+      "Americano": 0.0,
+      "Mocha": 0.0,
+      "Macchiato": 0.0,
+      "Flat White": 0.0,
+      "Cortado": 0.0,
+      "Cold Brew": 0.0,
+      "Iced Coffee": 0.0,
+      "Frappuccino": 0.0,
+      "Decaf": 0.0
+    },
+    "night_rainy_moderate": {
+      "Espresso": 0.0,
+      "Cappuccino": 0.0,
+      "Latte": 0.0,
+      "Americano": 0.0,
+      "Mocha": 0.0,
+      "Macchiato": 0.0,
+      "Flat White": 0.536,
+      "Cortado": 0.0,
+      "Cold Brew": 0.4,
+      "Iced Coffee": 0.0,
+      "Frappuccino": 0.0,
+      "Decaf": 0.0
+    },
+    "morning_sunny_hot": {
+      "Espresso": 0.0,
+      "Cappuccino": 0.0,
+      "Latte": 0.0,
+      "Americano": 0.0,
+      "Mocha": 0.0,
+      "Macchiato": 0.0,
+      "Flat White": 0.0,
+      "Cortado": 0.0,
+      "Cold Brew": 0.0,
+      "Iced Coffee": 0.0,
+      "Frappuccino": 0.0,
+      "Decaf": 0.6950000000000001
+    },
+    "night_cold_cold": {
+      "Espresso": 0.0,
+      "Cappuccino": 0.0,
+      "Latte": 0.0,
+      "Americano": 0.0,
+      "Mocha": 0.0,
+      "Macchiato": 0.0,
+      "Flat White": 0.796,
+      "Cortado": 0.0,
+      "Cold Brew": 0.0,
+      "Iced Coffee": 0.0,
+      "Frappuccino": 0.0,
+      "Decaf": 0.0
+    },
+    "evening_cloudy_moderate": {
+      "Macchiato": 0.5,
+      "Espresso": 0.0,
+      "Cappuccino": 0.0,
+      "Latte": 0.0,
+      "Americano": 0.0,
+      "Mocha": 0.0,
+      "Flat White": 0.0,
+      "Cortado": 0.0,
+      "Cold Brew": 0.0,
+      "Iced Coffee": 0.0,
+      "Frappuccino": 0.8455000000000001,
+      "Decaf": 0.0
+    },
+    "night_cloudy_moderate": {
+      "Frappuccino": 0.4,
+      "Espresso": 0.0,
+      "Cappuccino": 0.0,
+      "Latte": 0.0,
+      "Americano": 0.0,
+      "Mocha": 0.43600000000000005,
+      "Macchiato": 0.0,
+      "Flat White": 0.0,
+      "Cortado": 0.0,
+      "Cold Brew": 0.0,
+      "Iced Coffee": 0.0,
+      "Decaf": 0.0
+    },
+    "evening_cold_cold": {
+      "Cappuccino": 0.5,
+      "Espresso": 0.0,
+      "Latte": 0.0,
+      "Americano": 0.0,
+      "Mocha": 0.0,
+      "Macchiato": 0.0,
+      "Flat White": 0.0,
+      "Cortado": 0.0,
+      "Cold Brew": 0.0,
+      "Iced Coffee": 0.0,
+      "Frappuccino": 0.0,
+      "Decaf": 0.0
+    },
+    "afternoon_cloudy_moderate": {
+      "Espresso": 0.0,
+      "Cappuccino": 0.0,
+      "Latte": 0.0,
+      "Americano": 0.2,
+      "Mocha": 0.0,
+      "Macchiato": 0.0,
+      "Flat White": 0.0,
+      "Cortado": 0.0,
+      "Cold Brew": 0.0,
+      "Iced Coffee": 0.0,
+      "Frappuccino": 0.0,
+      "Decaf": 0.0
+    },
+    "morning_rainy_moderate": {
+      "Espresso": 0.0,
+      "Cappuccino": 0.0,
+      "Latte": 0.0,
+      "Americano": 0.0,
+      "Mocha": 0.0,
+      "Macchiato": 0.0,
+      "Flat White": 0.0,
+      "Cortado": 0.0,
+      "Cold Brew": 0.0,
+      "Iced Coffee": 0.0,
+      "Frappuccino": 0.4,
+      "Decaf": 0.0
+    },
+    "night_moderate": {
+      "Espresso": 0.0,
+      "Cappuccino": 0.0,
+      "Latte": 0.0,
+      "Americano": 0.0,
+      "Mocha": 0.0,
+      "Macchiato": 0.4,
+      "Flat White": 0.0,
+      "Cortado": 0.0,
+      "Cold Brew": 0.0,
+      "Iced Coffee": 0.0,
+      "Frappuccino": 0.0,
+      "Decaf": 0.0
+    },
+    "evening_sunny_hot": {
+      "Macchiato": 0.4,
+      "Espresso": 0.0,
+      "Cappuccino": 0.0,
+      "Latte": 0.0,
+      "Americano": 0.0,
+      "Mocha": 0.44824,
+      "Flat White": 0.0,
+      "Cortado": 0.0,
+      "Cold Brew": 0.536,
+      "Iced Coffee": 0.0,
+      "Frappuccino": 0.0,
+      "Decaf": 0.0
+    },
+    "afternoon_hot_hot": {
+      "Flat White": 0.5,
+      "Espresso": 0.0,
+      "Cappuccino": 0.0,
+      "Latte": 0.0,
+      "Americano": 0.0,
+      "Mocha": 0.0,
+      "Macchiato": 0.0,
+      "Cortado": 0.0,
+      "Cold Brew": 0.0,
+      "Iced Coffee": 0.0,
+      "Frappuccino": 0.0,
+      "Decaf": 0.0
+    },
+    "night_rainy": {
+      "Espresso": 0.0,
+      "Cappuccino": 0.0,
+      "Latte": 0.0,
+      "Americano": 0.0,
+      "Mocha": 0.0,
+      "Macchiato": 0.0,
+      "Flat White": 0.0,
+      "Cortado": 0.5,
+      "Cold Brew": 0.0,
+      "Iced Coffee": 0.0,
+      "Frappuccino": 0.0,
+      "Decaf": 0.0
+    },
+    "evening_hot_hot": {
+      "Espresso": 0.0,
+      "Cappuccino": 0.0,
+      "Latte": 0.0,
+      "Americano": 0.0,
+      "Mocha": 0.0,
+      "Macchiato": 0.0,
+      "Flat White": 0.4,
+      "Cortado": 0.0,
+      "Cold Brew": 0.0,
+      "Iced Coffee": 0.0,
+      "Frappuccino": 0.0,
+      "Decaf": 0.0
+    },
+    "morning_cold_cold": {
+      "Espresso": 0.0,
+      "Cappuccino": 0.0,
+      "Latte": 0.0,
+      "Americano": 0.0,
+      "Mocha": 0.0,
+      "Macchiato": 0.4,
+      "Flat White": 0.0,
+      "Cortado": 0.0,
+      "Cold Brew": 0.0,
+      "Iced Coffee": 0.0,
+      "Frappuccino": 0.0,
+      "Decaf": 0.0
+    },
+    "evening_cloudy_cold": {
+      "Espresso": 0.0,
+      "Cappuccino": 0.0,
+      "Latte": 0.0,
+      "Americano": 0.0,
+      "Mocha": 0.0,
+      "Macchiato": 0.30000000000000004,
+      "Flat White": 0.0,
+      "Cortado": 0.0,
+      "Cold Brew": 0.0,
+      "Iced Coffee": 0.0,
+      "Frappuccino": 0.0,
+      "Decaf": 0.0
+    },
+    "morning_hot_hot": {
+      "Espresso": 0.0,
+      "Cappuccino": 0.0,
+      "Latte": 0.5,
+      "Americano": 0.0,
+      "Mocha": 0.0,
+      "Macchiato": 0.0,
+      "Flat White": 0.0,
+      "Cortado": 0.0,
+      "Cold Brew": 0.0,
+      "Iced Coffee": 0.0,
+      "Frappuccino": 0.0,
+      "Decaf": 0.0
+    },
+    "night_rainy_cold": {
+      "Espresso": 0.0,
+      "Cappuccino": 0.0,
+      "Latte": 0.0,
+      "Americano": 0.0,
+      "Mocha": 0.0,
+      "Macchiato": 0.0,
+      "Flat White": 0.4,
+      "Cortado": 0.0,
+      "Cold Brew": 0.0,
+      "Iced Coffee": 0.0,
+      "Frappuccino": 0.0,
+      "Decaf": 0.0
+    },
+    "afternoon_sunny_moderate": {
+      "Flat White": 0.2,
+      "Espresso": 0.0,
+      "Cappuccino": 0.0,
+      "Latte": 0.0,
+      "Americano": 0.0,
+      "Mocha": 0.0,
+      "Macchiato": 0.0,
+      "Cortado": 0.0,
+      "Cold Brew": 0.0,
+      "Iced Coffee": 0.0,
+      "Frappuccino": 0.0,
+      "Decaf": 0.0
+    },
+    "night_sunny_moderate": {
+      "Espresso": 0.4,
+      "Cappuccino": 0.0,
+      "Latte": 0.0,
+      "Americano": 0.0,
+      "Mocha": 0.0,
+      "Macchiato": 0.0,
+      "Flat White": 0.0,
+      "Cortado": 0.0,
+      "Cold Brew": 0.0,
+      "Iced Coffee": 0.0,
+      "Frappuccino": 0.0,
+      "Decaf": 0.0
+    },
+    "evening_rainy_cold": {
+      "Espresso": 0.0,
+      "Cappuccino": 0.0,
+      "Latte": 0.0,
+      "Americano": 0.0,
+      "Mocha": 0.0,
+      "Macchiato": 0.0,
+      "Flat White": 0.0,
+      "Cortado": 0.0,
+      "Cold Brew": 0.0,
+      "Iced Coffee": 0.0,
+      "Frappuccino": 0.0,
+      "Decaf": 0.0
+    },
+    "morning_sunny_moderate": {
+      "Mocha": 0.4,
+      "Espresso": 0.0,
+      "Cappuccino": 0.0,
+      "Latte": 0.0,
+      "Americano": 0.0,
+      "Macchiato": 0.0,
+      "Flat White": 0.0,
+      "Cortado": 0.0,
+      "Cold Brew": 0.0,
+      "Iced Coffee": 0.0,
+      "Frappuccino": 0.0,
+      "Decaf": 0.0
+    },
+    "afternoon_cloudy_hot": {
+      "Mocha": 0.1,
+      "Espresso": 0.0,
+      "Cappuccino": 0.0,
+      "Latte": 0.0,
+      "Americano": 0.40900000000000003,
+      "Macchiato": 0.0,
+      "Flat White": 0.0,
+      "Cortado": 0.0,
+      "Cold Brew": 0.0,
+      "Iced Coffee": 0.0,
+      "Frappuccino": 0.0,
+      "Decaf": 0.0
+    },
+    "morning_cold_hot": {
+      "Mocha": 0.2,
+      "Espresso": 0.0,
+      "Cappuccino": 0.0,
+      "Latte": 0.0,
+      "Americano": 0.0,
+      "Macchiato": 0.0,
+      "Flat White": 0.0,
+      "Cortado": 0.0,
+      "Cold Brew": 0.0,
+      "Iced Coffee": 0.0,
+      "Frappuccino": 0.0,
+      "Decaf": 0.0
+    },
+    "afternoon_rainy_moderate": {
+      "Espresso": 0.0,
+      "Cappuccino": 0.0,
+      "Latte": 0.0,
+      "Americano": 0.0,
+      "Mocha": 0.0,
+      "Macchiato": 0.0,
+      "Flat White": 0.0,
+      "Cortado": 0.0,
+      "Cold Brew": 0.0,
+      "Iced Coffee": 0.0,
+      "Frappuccino": 0.0,
+      "Decaf": 0.0
+    },
+    "morning_cloudy_moderate": {
+      "Latte": 0.4,
+      "Espresso": 0.0,
+      "Cappuccino": 0.0,
+      "Americano": 0.0,
+      "Mocha": 0.0,
+      "Macchiato": 0.0,
+      "Flat White": 0.0,
+      "Cortado": 0.0,
+      "Cold Brew": 0.0,
+      "Iced Coffee": 0.0,
+      "Frappuccino": 0.0,
+      "Decaf": 0.0
+    },
+    "evening_rainy_hot": {
+      "Americano": 0.4,
+      "Espresso": 0.0,
+      "Cappuccino": 0.0,
+      "Latte": 0.0,
+      "Mocha": 0.0,
+      "Macchiato": 0.0,
+      "Flat White": 0.0,
+      "Cortado": 0.0,
+      "Cold Brew": 0.0,
+      "Iced Coffee": 0.0,
+      "Frappuccino": 0.0,
+      "Decaf": 0.0
+    }
+  },
+  "interaction_history": [
+    {
+      "coffee": "Macchiato",
+      "rating": 5,
+      "reward": 5,
+      "context": "morning_moderate",
+      "timestamp": "2025-12-27T16:32:50.989962"
+    },
+    {
+      "coffee": "Macchiato",
+      "rating": 3,
+      "reward": 3,
+      "context": "night_cold_moderate",
+      "timestamp": "2025-12-27T16:35:24.667992"
+    },
+    {
+      "coffee": "Espresso",
+      "rating": 4,
+      "reward": 4,
+      "context": "afternoon_sunny_hot",
+      "timestamp": "2025-12-27T16:36:07.772768"
+    },
+    {
+      "coffee": "Cold Brew",
+      "rating": 4,
+      "reward": 4,
+      "context": "night_rainy_moderate",
+      "timestamp": "2025-12-27T16:56:59.786612"
+    },
+    {
+      "coffee": "Decaf",
+      "rating": 5,
+      "reward": 5,
+      "context": "morning_sunny_hot",
+      "timestamp": "2025-12-27T17:02:54.096953"
+    },
+    {
+      "coffee": "Decaf",
+      "rating": 2,
+      "reward": 2,
+      "context": "morning_sunny_hot",
+      "timestamp": "2025-12-27T17:20:36.896835"
+    },
+    {
+      "coffee": "Flat White",
+      "rating": 4,
+      "reward": 4,
+      "context": "night_cold_cold",
+      "timestamp": "2025-12-27T17:57:37.486612"
+    },
+    {
+      "coffee": "Macchiato",
+      "rating": 5,
+      "reward": 5,
+      "context": "evening_cloudy_moderate",
+      "timestamp": "2025-12-27T17:58:09.414319"
+    },
+    {
+      "coffee": "Frappuccino",
+      "rating": 4,
+      "reward": 4,
+      "context": "night_cloudy_moderate",
+      "timestamp": "2025-12-27T18:06:28.392286"
+    },
+    {
+      "coffee": "Cappuccino",
+      "rating": 5,
+      "reward": 5,
+      "context": "evening_cold_cold",
+      "timestamp": "2025-12-27T18:25:02.369203"
+    },
+    {
+      "coffee": "Americano",
+      "rating": 2,
+      "reward": 2,
+      "context": "afternoon_cloudy_moderate",
+      "timestamp": "2025-12-27T18:26:02.933547"
+    },
+    {
+      "coffee": "Frappuccino",
+      "rating": 4,
+      "reward": 4,
+      "context": "morning_rainy_moderate",
+      "timestamp": "2025-12-27T18:26:42.772873"
+    },
+    {
+      "coffee": "Macchiato",
+      "rating": 4,
+      "reward": 4,
+      "context": "night_moderate",
+      "timestamp": "2025-12-27T18:27:34.874942"
+    },
+    {
+      "coffee": "Macchiato",
+      "rating": 4,
+      "reward": 4,
+      "context": "evening_sunny_hot",
+      "timestamp": "2025-12-27T18:28:05.097683"
+    },
+    {
+      "coffee": "Cold Brew",
+      "rating": 5,
+      "reward": 5,
+      "context": "evening_sunny_hot",
+      "timestamp": "2025-12-27T18:28:20.069191"
+    },
+    {
+      "coffee": "Flat White",
+      "rating": 5,
+      "reward": 5,
+      "context": "afternoon_hot_hot",
+      "timestamp": "2025-12-27T18:29:12.861899"
+    },
+    {
+      "coffee": "Cortado",
+      "rating": 5,
+      "reward": 5,
+      "context": "night_rainy",
+      "timestamp": "2025-12-29T20:30:55.563432"
+    },
+    {
+      "coffee": "Flat White",
+      "rating": 4,
+      "reward": 4,
+      "context": "evening_hot_hot",
+      "timestamp": "2025-12-29T20:55:36.426523"
+    },
+    {
+      "coffee": "Macchiato",
+      "rating": 4,
+      "reward": 4,
+      "context": "morning_cold_cold",
+      "timestamp": "2025-12-29T20:57:30.466428"
+    },
+    {
+      "coffee": "Macchiato",
+      "rating": 3,
+      "reward": 3,
+      "context": "evening_cloudy_cold",
+      "timestamp": "2025-12-29T20:58:41.090278"
+    },
+    {
+      "coffee": "Frappuccino",
+      "rating": 4,
+      "reward": 4,
+      "context": "evening_cloudy_moderate",
+      "timestamp": "2025-12-30T14:59:54.786486"
+    },
+    {
+      "coffee": "Frappuccino",
+      "rating": 4,
+      "reward": 4,
+      "context": "evening_cloudy_moderate",
+      "timestamp": "2025-12-30T15:00:36.217318"
+    },
+    {
+      "coffee": "Latte",
+      "rating": 5,
+      "reward": 5,
+      "context": "morning_hot_hot",
+      "timestamp": "2025-12-30T15:01:12.169965"
+    },
+    {
+      "coffee": "Flat White",
+      "rating": 4,
+      "reward": 4,
+      "context": "night_rainy_cold",
+      "timestamp": "2025-12-30T15:03:02.866326"
+    },
+    {
+      "coffee": "Mocha",
+      "rating": 4,
+      "reward": 4,
+      "context": "evening_sunny_hot",
+      "timestamp": "2025-12-30T17:41:34.619683"
+    },
+    {
+      "coffee": "Flat White",
+      "rating": 4,
+      "reward": 4,
+      "context": "night_cold_cold",
+      "timestamp": "2026-01-05T17:17:50.716521"
+    },
+    {
+      "coffee": "Flat White",
+      "rating": 2,
+      "reward": 2,
+      "context": "afternoon_sunny_moderate",
+      "timestamp": "2026-01-05T17:18:36.072262"
+    },
+    {
+      "coffee": "Espresso",
+      "rating": 4,
+      "reward": 4,
+      "context": "night_sunny_moderate",
+      "timestamp": "2026-02-03T16:54:59.054615"
+    },
+    {
+      "coffee": "Mocha",
+      "rating": 4,
+      "reward": 4,
+      "context": "morning_sunny_moderate",
+      "timestamp": "2026-02-03T16:56:39.932998"
+    },
+    {
+      "coffee": "Mocha",
+      "rating": 1,
+      "reward": 1,
+      "context": "afternoon_cloudy_hot",
+      "timestamp": "2026-02-03T17:00:05.787109"
+    },
+    {
+      "coffee": "Mocha",
+      "rating": 4,
+      "reward": 4,
+      "context": "night_cloudy_moderate",
+      "timestamp": "2026-02-03T17:00:28.283008"
+    },
+    {
+      "coffee": "Mocha",
+      "rating": 2,
+      "reward": 2,
+      "context": "morning_cold_hot",
+      "timestamp": "2026-02-03T17:00:55.824895"
+    },
+    {
+      "coffee": "Flat White",
+      "rating": 5,
+      "reward": 5,
+      "context": "night_rainy_moderate",
+      "timestamp": "2026-02-03T17:09:35.836609"
+    },
+    {
+      "coffee": "Latte",
+      "rating": 4,
+      "reward": 4,
+      "context": "morning_cloudy_moderate",
+      "timestamp": "2026-02-03T17:10:37.039358"
+    },
+    {
+      "coffee": "Americano",
+      "rating": 4,
+      "reward": 4,
+      "context": "afternoon_cloudy_hot",
+      "timestamp": "2026-02-03T17:12:43.744695"
+    },
+    {
+      "coffee": "Americano",
+      "rating": 4,
+      "reward": 4,
+      "context": "evening_rainy_hot",
+      "timestamp": "2026-02-03T17:28:42.495118"
+    }
+  ],
+  "total_interactions": 36,
+  "best_coffee": "Macchiato",
+  "best_rating": 5,
+  "strategy": "qlearning",
+  "use_context": true
+}
