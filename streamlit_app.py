@@ -212,6 +212,62 @@ st.markdown(
         border: 1px solid rgba(212, 166, 116, 0.35);
         margin-right: 0.25rem;
     }}
+    .bb-kpi-grid {{
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 0.6rem;
+        margin: 0.2rem 0 1rem 0;
+    }}
+    .bb-kpi {{
+        background: linear-gradient(165deg, rgba(20, 18, 24, 0.92) 0%, rgba(14, 13, 18, 0.92) 100%);
+        border: 1px solid rgba(212, 166, 116, 0.25);
+        border-radius: 10px;
+        padding: 0.6rem 0.7rem;
+    }}
+    .bb-kpi-label {{
+        font-size: 0.62rem;
+        color: var(--bb-text-muted) !important;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        margin: 0;
+    }}
+    .bb-kpi-value {{
+        font-size: 1.05rem;
+        color: #f2e2cf !important;
+        font-family: 'Fraunces', serif;
+        margin: 0.18rem 0 0 0;
+    }}
+    @media (max-width: 980px) {{
+        .bb-kpi-grid {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }}
+    }}
+    .bb-kpi-grid {{
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 0.6rem;
+        margin: 0.2rem 0 1rem 0;
+    }}
+    .bb-kpi {{
+        background: linear-gradient(165deg, rgba(20, 18, 24, 0.92) 0%, rgba(14, 13, 18, 0.92) 100%);
+        border: 1px solid rgba(212, 166, 116, 0.25);
+        border-radius: 10px;
+        padding: 0.6rem 0.7rem;
+    }}
+    .bb-kpi-label {{
+        font-size: 0.62rem;
+        color: var(--bb-text-muted) !important;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        margin: 0;
+    }}
+    .bb-kpi-value {{
+        font-size: 1.05rem;
+        color: #f2e2cf !important;
+        font-family: 'Fraunces', serif;
+        margin: 0.18rem 0 0 0;
+    }}
+    @media (max-width: 980px) {{
+        .bb-kpi-grid {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }}
+    }}
     /* Stats mini */
     .bb-stat-num {{ font-size: 1.85rem; font-weight: 700; color: {ACCENT}; font-family: 'Fraunces', serif; }}
     .bb-stat-label {{ font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--bb-text-muted) !important; font-weight: 600; }}
@@ -275,7 +331,7 @@ st.markdown(
     /* Streamlit status boxes */
     [data-testid="stSuccess"] {{ background: rgba(100, 180, 100, 0.12) !important; border: 1px solid rgba(120, 200, 120, 0.3) !important; border-radius: 12px !important; color: #c8e8c8 !important; }}
     [data-testid="stInfo"] {{ background: var(--bb-surface) !important; border: 1px solid var(--bb-border) !important; border-radius: 12px !important; color: var(--bb-text) !important; }}
-    [data-baseweb="notification"] {{ display: none; }}
+    [data-testid="stWarning"] {{ background: rgba(255, 170, 70, 0.12) !important; border: 1px solid rgba(255, 170, 70, 0.35) !important; border-radius: 12px !important; color: #f1d2a7 !important; }}
     .bb-footer {{
         text-align: center; padding: 2rem 1rem; color: var(--bb-text-muted) !important;
         font-size: 0.78rem; letter-spacing: 0.04em;
@@ -364,6 +420,15 @@ def get_coffee_image_path(coffee_name: str):
     image_file = image_mapping.get(normalized)
     if image_file and os.path.exists(f"images/{image_file}"):
         return f"images/{image_file}"
+    # Fallback for imported dataset coffees (no exact local asset yet)
+    fallback_candidates = [
+        "images/coffee1.png",
+        "images/espresso.jpg",
+        "images/americano.jpg",
+    ]
+    for fp in fallback_candidates:
+        if os.path.exists(fp):
+            return fp
     return None
 
 
@@ -722,17 +787,50 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+_stats = st.session_state.agent.get_statistics()
+_catalog_count = len(st.session_state.agent.coffee_items)
+_history = st.session_state.agent.interaction_history
+_n_states = len({h.get("context") for h in _history if h.get("context")}) if _history else 0
+_source_badge = "seed"
+if _catalog_count:
+    source_vals = {
+        (m.get("source_ref") or "seed")
+        for m in st.session_state.agent.coffee_items.values()
+    }
+    if "dataset" in source_vals and len(source_vals) > 1:
+        _source_badge = "mixed"
+    elif "dataset" in source_vals:
+        _source_badge = "dataset"
+
+st.markdown(
+    f"""
+    <div class="bb-kpi-grid">
+        <div class="bb-kpi"><p class="bb-kpi-label">Policy</p><p class="bb-kpi-value">{st.session_state.agent.strategy.upper()}</p></div>
+        <div class="bb-kpi"><p class="bb-kpi-label">Interactions</p><p class="bb-kpi-value">{_stats.get("total_interactions", 0)}</p></div>
+        <div class="bb-kpi"><p class="bb-kpi-label">Mean Rating</p><p class="bb-kpi-value">{_stats.get("average_rating", 0.0):.2f}</p></div>
+        <div class="bb-kpi"><p class="bb-kpi-label">Catalog Source</p><p class="bb-kpi-value">{_source_badge.title()}</p></div>
+    </div>
+    <p style="margin:0 0 0.85rem 0;">
+        <span class="bb-chip">State coverage: {_n_states}</span>
+        <span class="bb-chip">Catalog size: {_catalog_count}</span>
+        <span class="bb-chip">Shortlist: {len(st.session_state.agent._candidate_coffees)}</span>
+        <span class="bb-chip">Hybrid: {"on" if st.session_state.agent.use_hybrid else "off"}</span>
+    </p>
+    """,
+    unsafe_allow_html=True,
+)
+
 t1, t2, t3, t4, t5 = st.tabs(["Q-Table", "By coffee", "Curve", "Context", "Catalog"])
 
 with t1:
-    st.caption("State × action value landscape (Q-learning).")
+    st.caption("State-action value landscape (Q-learning). Higher values indicate stronger policy preference.")
     if st.session_state.agent.strategy == "qlearning":
         q_df = st.session_state.agent.get_q_table_df()
         if not q_df.empty:
             fig = px.imshow(
                 q_df.T,
                 labels=dict(x="State", y="Coffee", color="Q"),
-                color_continuous_scale=[[0, "rgba(8,8,10,0.3)"], [0.5, f"{ACCENT}88"], [1, ACCENT2]],
+                color_continuous_scale=[[0, "rgba(8,8,10,0.3)"], [0.5, "rgba(212,166,116,0.55)"], [1, ACCENT2]],
                 aspect="auto",
             )
             _apply_plot_theme(fig)
@@ -744,7 +842,7 @@ with t1:
         st.info("Switch the policy to Q-learning in the sidebar to see this view.")
 
 with t2:
-    st.caption("Average feedback per drink.")
+    st.caption("Mean feedback by coffee and number of trials (sample size encoded by color).")
     s2 = st.session_state.agent.get_statistics()
     cstats = s2["coffee_stats"]
     if cstats:
@@ -756,7 +854,7 @@ with t2:
         dfp = pd.DataFrame({"Coffee": names, "Avg": avgs, "N": cnts})
         fig = px.bar(
             dfp, x="Coffee", y="Avg", color="N", text="Avg",
-            color_continuous_scale=[[0, "rgba(8,8,10,0.2)"], [0.5, f"{ACCENT}99"], [1, ACCENT2]]
+            color_continuous_scale=[[0, "rgba(8,8,10,0.2)"], [0.5, "rgba(212,166,116,0.60)"], [1, ACCENT2]]
         )
         _apply_plot_theme(fig)
         fig.update_traces(texttemplate="%{text:.2f}", textposition="outside", marker_line_width=0, marker_cornerradius=4)
@@ -778,7 +876,7 @@ with t3:
                 y=dfb["rating"],
                 mode="markers+lines",
                 name="Each rating",
-                line=dict(color=f"{ACCENT}66", width=1),
+                line=dict(color="rgba(212,166,116,0.40)", width=1),
                 marker=dict(size=7, color=ACCENT, line=dict(width=0.5, color=ACCENT2)),
             )
         )
@@ -792,6 +890,7 @@ with t3:
         )
         fig.update_layout(legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0, font_size=10))
         _apply_plot_theme(fig)
+        fig.update_layout(xaxis_title="Interaction index", yaxis_title="Rating")
         st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
         st.subheader("Recent")
         keys = [k for k in ("coffee", "rating", "context", "ml_state", "subjective", "timestamp") if any(k in r for r in h[-10:])]
@@ -820,9 +919,12 @@ with t4:
             )
             if not csg.empty:
                 csg = csg.rename(columns={"context": "Context", "rm": "Avg", "c": "N", "pop": "Mode"})
+                top_rows = csg.sort_values(["Avg", "N"], ascending=[False, False]).head(3)
+                top_str = " | ".join([f"{r.Context[:24]} ({r.Avg:.2f})" for r in top_rows.itertuples(index=False)])
+                st.caption(f"Top-performing contexts: {top_str}")
                 fig = px.bar(
                     csg, x="Context", y="Avg", color="N", text="Avg",
-                    color_continuous_scale=[[0, "rgba(5,5,8,0.2)"], [0.5, f"{ACCENT}88"], [1, ACCENT2]]
+                    color_continuous_scale=[[0, "rgba(5,5,8,0.2)"], [0.5, "rgba(212,166,116,0.55)"], [1, ACCENT2]]
                 )
                 _apply_plot_theme(fig)
                 fig.update_traces(texttemplate="%{text:.2f}", textposition="outside", marker_cornerradius=4)
@@ -854,6 +956,14 @@ with t5:
         source_counts = cdf.groupby("Source").size().reset_index(name="Count")
         fig = px.pie(source_counts, values="Count", names="Source", hole=0.45)
         _apply_plot_theme(fig)
+        fig.update_traces(
+            textinfo="percent+label",
+            marker=dict(line=dict(color="rgba(255,255,255,0.08)", width=1)),
+        )
+        fig.update_layout(
+            showlegend=True,
+            legend=dict(orientation="h", yanchor="bottom", y=1.05, x=0),
+        )
         st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
         st.dataframe(
             cdf.sort_values(["Source", "Coffee"]).reset_index(drop=True),
