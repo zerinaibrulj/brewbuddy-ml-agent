@@ -11,6 +11,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+import pandas as pd
+
 
 def get_default_db_path() -> Path:
     root = Path(__file__).resolve().parent.parent
@@ -241,3 +243,197 @@ def log_interaction(
             ),
         )
         c.commit()
+
+
+def _coerce01(value: Any, default: float = 0.5) -> float:
+    try:
+        v = float(value)
+    except (TypeError, ValueError):
+        return default
+    if v < 0:
+        return 0.0
+    if v > 1:
+        return 1.0
+    return v
+
+
+def _infer_features_from_row(row: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Infer normalized features for arbitrary coffee dataset rows.
+    The mapping is heuristic but consistent and fully persisted in extra_json.
+    """
+    name = str(row.get("name", "") or "").strip()
+    roast = str(row.get("roast", "") or "").lower()
+    rating = float(row.get("rating", 86) or 86)
+    text_parts = [
+        str(row.get("desc_1", "") or ""),
+        str(row.get("desc_2", "") or ""),
+        str(row.get("desc_3", "") or ""),
+        str(row.get("review", "") or ""),
+        name,
+    ]
+    text = " ".join(text_parts).lower()
+
+    # Caffeine tendency: roast + style words (cold brew/espresso stronger).
+    caffeine = 0.52
+    if "espresso" in text:
+        caffeine += 0.18
+    if "cold brew" in text:
+        caffeine += 0.16
+    if "decaf" in text:
+        caffeine = 0.08
+    if "dark" in roast:
+        caffeine += 0.08
+    elif "medium-light" in roast or "light" in roast:
+        caffeine -= 0.03
+
+    # Milk / dairy load inferred from beverage language.
+    milk = 0.0
+    if any(k in text for k in ("latte", "flat white", "cappuccino", "macchiato", "cortado")):
+        milk = 0.55
+    if any(k in text for k in ("frappuccino", "mocha")):
+        milk = 0.70
+    if "americano" in text:
+        milk = 0.05
+    dairy = milk
+    if any(k in text for k in ("oat", "soy", "almond", "lactose-free", "vegan")):
+        dairy *= 0.25
+
+    # Bitterness from roast and descriptors.
+    bitter = 0.45
+    if "dark" in roast:
+        bitter += 0.2
+    if any(k in text for k in ("chocolate", "cocoa", "syrupy")):
+        bitter -= 0.04
+    if any(k in text for k in ("citrus", "floral", "bright")):
+        bitter -= 0.06
+    if rating >= 93:
+        bitter -= 0.04
+
+    caffeine = _coerce01(caffeine)
+    milk = _coerce01(milk, default=0.0)
+    dairy = _coerce01(dairy, default=0.0)
+    bitter = _coerce01(bitter)
+
+    # Map to hybrid categories used by classifier/policy handoff.
+    if caffeine >= 0.8:
+        cat = "extreme_caffeine"
+    elif caffeine <= 0.15:
+        cat = "relaxation"
+    elif milk >= 0.55 and caffeine <= 0.6:
+        cat = "comfort"
+    elif 0.45 <= caffeine <= 0.65:
+        cat = "light_wakeup"
+    else:
+        cat = "balanced"
+
+    return {
+        "name": name,
+        "caffeine_level": caffeine,
+        "milk_level": milk,
+        "dairy_load": dairy,
+        "bitterness": bitter,
+        "state_category": cat,
+    }
+
+
+def _normalize_dataset(df: pd.DataFrame) -> pd.DataFrame:
+    rows: List[Dict[str, Any]] = []
+    for _, rec in df.iterrows():
+        row = {k: rec.get(k) for k in df.columns}
+        if not str(row.get("name", "")).strip():
+            continue
+        feats = _infer_features_from_row(row)
+        feats["source_ref"] = "dataset"
+        feats["extra_json"] = json.dumps(
+            {
+                "roaster": row.get("roaster"),
+                "roast": row.get("roast"),
+                "origin": row.get("origin") or row.get("origin_1"),
+                "origin_2": row.get("origin_2"),
+                "rating": row.get("rating"),
+                "price_100g_usd": row.get("100g_USD"),
+                "review_date": row.get("review_date"),
+            }
+        )
+        rows.append(feats)
+    return pd.DataFrame(rows).drop_duplicates(subset=["name"], keep="first")
+
+
+def import_dataset_rows(
+    dataset_paths: Optional[List[Path]] = None,
+    db_path: Optional[Path] = None,
+    limit_per_dataset: int = 300,
+) -> Dict[str, int]:
+    """
+    Import new rows from CSV datasets into coffee_items.
+    Upserts by name and keeps deterministic limit to keep UI manageable.
+    """
+    base = Path(__file__).resolve().parent / "datasets"
+    paths = dataset_paths or [base / "simplified_coffee.csv", base / "coffee_analysis.csv"]
+    inserted = 0
+    updated = 0
+    seen = 0
+    init_db(db_path)
+    path = db_path or get_default_db_path()
+    with _connect(path) as c:
+        for p in paths:
+            if not p.exists():
+                continue
+            df = pd.read_csv(p)
+            if len(df) > limit_per_dataset:
+                # Keep highest-rated samples for stronger recommendation relevance.
+                if "rating" in df.columns:
+                    df = df.sort_values("rating", ascending=False).head(limit_per_dataset)
+                else:
+                    df = df.head(limit_per_dataset)
+            norm = _normalize_dataset(df)
+            for _, r in norm.iterrows():
+                seen += 1
+                exists = c.execute("SELECT id FROM coffee_items WHERE name = ?", (r["name"],)).fetchone()
+                if exists is None:
+                    c.execute(
+                        """
+                        INSERT INTO coffee_items
+                        (name, caffeine_level, milk_level, dairy_load, bitterness, state_category, source_ref, extra_json)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            r["name"],
+                            float(r["caffeine_level"]),
+                            float(r["milk_level"]),
+                            float(r["dairy_load"]),
+                            float(r["bitterness"]),
+                            str(r["state_category"]),
+                            str(r["source_ref"]),
+                            str(r["extra_json"]),
+                        ),
+                    )
+                    inserted += 1
+                else:
+                    c.execute(
+                        """
+                        UPDATE coffee_items SET
+                            caffeine_level = ?,
+                            milk_level = ?,
+                            dairy_load = ?,
+                            bitterness = ?,
+                            state_category = ?,
+                            source_ref = ?,
+                            extra_json = ?
+                        WHERE name = ?
+                        """,
+                        (
+                            float(r["caffeine_level"]),
+                            float(r["milk_level"]),
+                            float(r["dairy_load"]),
+                            float(r["bitterness"]),
+                            str(r["state_category"]),
+                            str(r["source_ref"]),
+                            str(r["extra_json"]),
+                            str(r["name"]),
+                        ),
+                    )
+                    updated += 1
+        c.commit()
+    return {"seen": seen, "inserted": inserted, "updated": updated}

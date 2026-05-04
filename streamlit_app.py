@@ -15,7 +15,12 @@ from PIL import Image
 
 from background_worker import BackgroundWorker
 from brewbuddy_agent import BrewBuddyAgent, NoWork
-from brewbuddy_data.database import get_user_profile, init_db, save_user_profile
+from brewbuddy_data.database import (
+    get_user_profile,
+    import_dataset_rows,
+    init_db,
+    save_user_profile,
+)
 
 # —— Theme: premium dark, warm gold / espresso accents ——
 st.set_page_config(
@@ -178,6 +183,34 @@ st.markdown(
         text-align: center;
         font-size: 1.02rem;
         color: var(--bb-text-muted) !important;
+    }}
+    .bb-rec-card {{
+        background: linear-gradient(165deg, rgba(28, 22, 17, 0.92) 0%, rgba(17, 14, 20, 0.92) 100%);
+        border: 1px solid rgba(212, 166, 116, 0.28);
+        border-radius: 14px;
+        padding: 0.9rem 1rem;
+        height: 100%;
+    }}
+    .bb-rec-title {{
+        color: #f0e4d4 !important;
+        font-size: 1.02rem;
+        font-weight: 600;
+        margin: 0 0 0.4rem 0;
+    }}
+    .bb-rec-meta {{
+        color: #a89f95 !important;
+        font-size: 0.78rem;
+        margin: 0;
+    }}
+    .bb-chip {{
+        display: inline-block;
+        font-size: 0.68rem;
+        padding: 0.2rem 0.46rem;
+        border-radius: 999px;
+        color: #f6e9d7;
+        background: rgba(212, 166, 116, 0.2);
+        border: 1px solid rgba(212, 166, 116, 0.35);
+        margin-right: 0.25rem;
     }}
     /* Stats mini */
     .bb-stat-num {{ font-size: 1.85rem; font-weight: 700; color: {ACCENT}; font-family: 'Fraunces', serif; }}
@@ -414,6 +447,18 @@ with st.sidebar:
         use_hybrid = st.toggle("Classify state → cosine shortlist → policy", value=True, help="Matches `state_category` in the database.")
         st.session_state.agent.use_hybrid = use_hybrid
 
+    with st.expander("Competition data boost", expanded=False):
+        st.caption("Import curated rows from the new datasets into SQLite and refresh the active catalog.")
+        rows_per = st.slider("Rows per dataset", 100, 1200, 350, 50)
+        if st.button("Import datasets into catalog", use_container_width=True, type="primary"):
+            result = import_dataset_rows(limit_per_dataset=rows_per)
+            st.session_state.agent.reload_catalog_from_db()
+            st.success(
+                f"Imported successfully: +{result['inserted']} new, {result['updated']} updated "
+                f"(processed {result['seen']} rows)."
+            )
+        st.caption(f"Current catalog size: **{len(st.session_state.agent.coffees)}** drinks")
+
     st.divider()
     b1, b2 = st.columns(2)
     with b1:
@@ -560,6 +605,11 @@ with main:
     if display_coffee:
         coffee_name = display_coffee
         coffee_image_path = get_coffee_image_path(coffee_name)
+        coffee_meta = ag.coffee_items.get(coffee_name, {})
+        caffeine_level = float(coffee_meta.get("caffeine_level", 0.5))
+        bitterness = float(coffee_meta.get("bitterness", 0.5))
+        dairy_load = float(coffee_meta.get("dairy_load", 0.0))
+        ml_state = ag.current_ml_state.replace("_", " ").title()
         st.markdown(
             """
         <div class="bb-glass" style="padding-bottom:0.5rem">
@@ -577,9 +627,34 @@ with main:
                 f"""
             <p class="bb-drink-name">{coffee_name}</p>
             <p class="bb-drink-desc">{COFFEE_DESCRIPTIONS.get(coffee_name, "A delicious option.")}</p>
+            <p style="text-align:center; margin-top:0.35rem;">
+                <span class="bb-chip">State: {ml_state}</span>
+                <span class="bb-chip">Caffeine {caffeine_level:.2f}</span>
+                <span class="bb-chip">Bitterness {bitterness:.2f}</span>
+                <span class="bb-chip">Dairy {dairy_load:.2f}</span>
+            </p>
             """,
                 unsafe_allow_html=True,
             )
+            top_alts = [c for c in ag._candidate_coffees if c != coffee_name][:3]
+            if top_alts:
+                st.markdown("**Alternative picks from current shortlist**")
+                alt_cols = st.columns(len(top_alts))
+                for i, alt in enumerate(top_alts):
+                    alt_meta = ag.coffee_items.get(alt, {})
+                    cos = ag.last_cosine_scores.get(alt, 0.0)
+                    with alt_cols[i]:
+                        st.markdown(
+                            f"""
+                            <div class="bb-rec-card">
+                                <p class="bb-rec-title">{alt}</p>
+                                <p class="bb-rec-meta">Cosine score: {cos:.3f}</p>
+                                <p class="bb-rec-meta">Caffeine: {float(alt_meta.get("caffeine_level", 0.0)):.2f}</p>
+                                <p class="bb-rec-meta">Dairy load: {float(alt_meta.get("dairy_load", 0.0)):.2f}</p>
+                            </div>
+                            """,
+                            unsafe_allow_html=True,
+                        )
         st.divider()
         st.markdown("**How was it?**")
         rating = st.select_slider(
@@ -622,6 +697,11 @@ with aside:
         st.metric("Session interactions", f"{stats['total_interactions']}")
     with b:
         st.metric("Average rating", f"{stats['average_rating']:.2f}")
+    c, d = st.columns(2)
+    with c:
+        st.metric("Catalog size", f"{stats.get('menu_size', len(st.session_state.agent.coffees))}")
+    with d:
+        st.metric("Shortlist", f"{stats.get('shortlist_size', len(st.session_state.agent._candidate_coffees))}")
     st.markdown("</div>", unsafe_allow_html=True)
     if stats["best_coffee"]:
         st.markdown(
@@ -642,7 +722,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-t1, t2, t3, t4 = st.tabs(["Q-Table", "By coffee", "Curve", "Context"])
+t1, t2, t3, t4, t5 = st.tabs(["Q-Table", "By coffee", "Curve", "Context", "Catalog"])
 
 with t1:
     st.caption("State × action value landscape (Q-learning).")
@@ -754,6 +834,34 @@ with t4:
             st.caption("Older history had no `context` field; new runs log the full key.")
     else:
         st.info("Enable context and add interactions.")
+
+with t5:
+    st.caption("Catalog composition and source quality (seed vs imported datasets).")
+    catalog_rows = []
+    for n, meta in st.session_state.agent.coffee_items.items():
+        catalog_rows.append(
+            {
+                "Coffee": n,
+                "Category": meta.get("state_category"),
+                "Source": meta.get("source_ref") or "seed",
+                "Caffeine": float(meta.get("caffeine_level", 0)),
+                "Bitterness": float(meta.get("bitterness", 0)),
+                "Dairy": float(meta.get("dairy_load", 0)),
+            }
+        )
+    if catalog_rows:
+        cdf = pd.DataFrame(catalog_rows)
+        source_counts = cdf.groupby("Source").size().reset_index(name="Count")
+        fig = px.pie(source_counts, values="Count", names="Source", hole=0.45)
+        _apply_plot_theme(fig)
+        st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+        st.dataframe(
+            cdf.sort_values(["Source", "Coffee"]).reset_index(drop=True),
+            use_container_width=True,
+            height=280,
+        )
+    else:
+        st.info("No catalog rows available.")
 
 st.markdown(
     f"""

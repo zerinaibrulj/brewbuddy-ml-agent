@@ -8,6 +8,7 @@ from .database import (
     get_user_profile,
     save_user_profile,
     log_interaction,
+    import_dataset_rows,
 )
 
 __all__ = [
@@ -18,4 +19,5 @@ __all__ = [
     "get_user_profile",
     "save_user_profile",
     "log_interaction",
+    "import_dataset_rows",
 ]

@@ -101,6 +101,21 @@ class BrewBuddyAgent:
         self._last_user_profile: Optional[Dict[str, Any]] = None
         self._last_sense: Dict[str, Any] = {}
 
+    def reload_catalog_from_db(self) -> None:
+        """Refresh menu items from SQLite after dataset imports."""
+        all_names = get_coffee_list(self._db_path)
+        self.coffees = list(all_names)
+        full = get_coffee_dicts(self._db_path)
+        self.coffee_items = {n: full[n] for n in self.coffees if n in full}
+        if hasattr(self, "alpha"):
+            for c in self.coffees:
+                self.alpha.setdefault(c, 1.0)  # type: ignore[attr-defined]
+                self.beta.setdefault(c, 1.0)  # type: ignore[attr-defined]
+        if hasattr(self, "action_counts"):
+            for c in self.coffees:
+                self.action_counts.setdefault(c, 0)  # type: ignore[attr-defined]
+                self.action_rewards.setdefault(c, [])  # type: ignore[attr-defined]
+
     def _action_space(self) -> List[str]:
         c = [x for x in (self._candidate_coffees or []) if x in self.coffees]
         if c:
@@ -388,6 +403,8 @@ class BrewBuddyAgent:
             "best_coffee": self.best_coffee,
             "best_rating": self.best_rating,
             "coffee_stats": coffee_stats,
+            "menu_size": len(self.coffees),
+            "shortlist_size": len(self._candidate_coffees),
         }
 
     def get_q_table_df(self) -> pd.DataFrame:
