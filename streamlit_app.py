@@ -488,6 +488,11 @@ st.markdown(
         font-size: 0.78rem; letter-spacing: 0.04em;
     }}
     [data-testid="stExpander"] details summary {{ color: {ACCENT} !important; }}
+    [data-testid="stExpanderDetails"] p,
+    [data-testid="stExpanderDetails"] li,
+    [data-testid="stExpanderDetails"] span {{
+        color: #f4f4f6 !important;
+    }}
     /* Metric streamlit */
     [data-testid="stMetricValue"] {{ color: {ACCENT} !important; font-family: 'Fraunces', serif !important; font-size: 1.5rem; }}
     [data-testid="stMetricLabel"] > div {{ color: var(--bb-text-muted) !important; text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.7rem; }}
