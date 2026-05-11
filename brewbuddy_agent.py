@@ -407,6 +407,39 @@ class BrewBuddyAgent:
             "shortlist_size": len(self._candidate_coffees),
         }
 
+    def recommendation_narrative(self, coffee: Optional[str] = None) -> List[str]:
+        """
+        Build a concise explainability narrative for the latest recommendation.
+        """
+        name = coffee or self.pending_recommendation
+        if not name:
+            return ["No active recommendation to explain yet."]
+        meta = self.coffee_items.get(name, {})
+        lines: List[str] = []
+        lines.append(
+            f"State classifier mapped the current context to '{self.current_ml_state}', "
+            "which constrained the candidate set."
+        )
+        cos = self.last_cosine_scores.get(name)
+        if cos is not None:
+            lines.append(
+                f"Content matching scored `{name}` at cosine similarity {cos:.3f} "
+                "against your current need vector."
+            )
+        if self.current_subjective.lactose_intolerance:
+            lines.append("Lactose intolerance is active, so high-dairy options are deprioritized.")
+        c = float(meta.get("caffeine_level", 0.0))
+        d = float(meta.get("dairy_load", 0.0))
+        b = float(meta.get("bitterness", 0.0))
+        lines.append(
+            f"Drink profile used by the policy: caffeine {c:.2f}, dairy {d:.2f}, bitterness {b:.2f}."
+        )
+        lines.append(
+            f"Final selection was made by `{self.strategy}` over the current shortlist "
+            f"({max(len(self._candidate_coffees), 1)} candidates)."
+        )
+        return lines
+
     def get_q_table_df(self) -> pd.DataFrame:
         if not self.q_table:
             return pd.DataFrame()
