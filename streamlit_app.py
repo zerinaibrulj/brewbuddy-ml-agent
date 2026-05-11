@@ -243,27 +243,35 @@ st.markdown(
     /* Hero */
     .bb-hero {{
         text-align: center;
-        padding: 0.5rem 0 1.5rem 0;
-        border-bottom: 1px solid var(--bb-border);
-        margin-bottom: 1.75rem;
+        max-width: 760px;
+        margin: 0 auto 1.75rem auto;
+        padding: 0.95rem 1.2rem 1.35rem 1.2rem;
+        border: 1px solid rgba(212, 166, 116, 0.18);
+        border-radius: 16px;
+        background: linear-gradient(180deg, rgba(19, 16, 23, 0.72) 0%, rgba(10, 10, 14, 0.55) 100%);
+        box-shadow: 0 0 0 1px rgba(212, 166, 116, 0.06), 0 24px 48px -30px rgba(0, 0, 0, 0.7);
     }}
     .bb-hero-title {{
         font-family: 'Fraunces', Georgia, serif;
-        font-size: clamp(2.4rem, 5vw, 3.2rem);
+        font-size: clamp(2.55rem, 5vw, 3.3rem);
         font-weight: 700;
         background: linear-gradient(120deg, #f0e4d4 0%, {ACCENT} 45%, #8b5a3a 100%);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         background-clip: text;
-        margin: 0 0 0.35rem 0;
+        margin: 0 0 0.45rem 0;
+        text-shadow: 0 6px 20px rgba(212, 166, 116, 0.2);
     }}
     .bb-hero-sub {{
         font-family: 'Outfit', sans-serif;
-        font-size: 1.05rem;
+        font-size: 1.02rem;
         font-weight: 400;
         color: var(--bb-text-muted) !important;
-        max-width: 32rem;
-        margin: 0 auto;
+        max-width: 36rem;
+        margin: 0.2rem auto 0 auto;
+        text-align: center !important;
+        display: block;
+        width: 100%;
     }}
     .bb-pill-row {{
         display: flex; flex-wrap: wrap; justify-content: center; gap: 0.5rem; margin-top: 1.1rem;
@@ -696,32 +704,19 @@ with st.sidebar:
             st.rerun()
 
 # —— Main hero ——
-h_left, h_mid, h_right = st.columns([0.2, 2, 0.2])
-with h_left:
-    if os.path.exists("images/coffee1.png"):
-        st.image(Image.open("images/coffee1.png"), width=64)
-    else:
-        st.write("")
-with h_mid:
-    st.markdown(
-        """
-    <div class="bb-hero">
-        <div class="bb-hero-title">BrewBuddy</div>
-        <p class="bb-hero-sub">Subjective state · learned policy · your perfect cup. Intelligence that adapts to how you really feel, not just the weather.</p>
-        <div class="bb-pill-row">
-            <span class="bb-pill">Classification</span>
-            <span class="bb-pill">Content match</span>
-            <span class="bb-pill">Bandit / Q-learning</span>
-        </div>
-    </div>""",
-        unsafe_allow_html=True,
-    )
-with h_right:
-    w = st.session_state.background_worker.get_status()
-    if w["running"]:
-        st.caption("Worker live")
-    else:
-        st.caption("—")
+st.markdown(
+    """
+<div class="bb-hero">
+    <div class="bb-hero-title">BrewBuddy</div>
+    <p class="bb-hero-sub"></p>
+    <div class="bb-pill-row">
+        <span class="bb-pill">Classification</span>
+        <span class="bb-pill">Content match</span>
+        <span class="bb-pill">Bandit / Q-learning</span>
+    </div>
+</div>""",
+    unsafe_allow_html=True,
+)
 
 # —— Body ——
 main, aside = st.columns([1.55, 0.9])
