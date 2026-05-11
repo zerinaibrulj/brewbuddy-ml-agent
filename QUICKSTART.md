@@ -1,113 +1,107 @@
-# BrewBuddy Quick Start Guide
+# BrewBuddy Quick Start
 
-## 🚀 Quick Start
+This guide is optimized for live demos and competition presentations.
 
-1. **Install dependencies**:
-   ```bash
-   pip install -r requirements.txt
-   ```
+---
 
-2. **Run the application**:
-   ```bash
-   streamlit run streamlit_app.py
-   ```
+## 1) Run in 2 Commands
 
-3. **Start using BrewBuddy**:
-   - The app opens in your browser automatically
-   - Click "Get Coffee Recommendation" to get your first suggestion
-   - Rate the coffee (1-5 stars)
-   - Submit your rating
-   - Repeat to help the agent learn!
+```bash
+pip install -r requirements.txt
+streamlit run streamlit_app.py
+```
 
-## 🎯 Key Features to Try
+Open `http://localhost:8501`.
 
-### 1. Basic Recommendation Flow
-- Get a recommendation → Rate it → See the agent learn
-- Watch statistics update in real-time
+---
 
-### 2. Context-Aware Recommendations
-- Enable "Use Context-Aware States" in sidebar
-- Set time of day, weather, and temperature
-- See how context affects recommendations
+## 2) First Demo Flow (Recommended)
 
-### 3. Different Learning Strategies
-Try switching between:
-- **Q-Learning**: Full reinforcement learning with states
-- **Thompson Sampling**: Bayesian Multi-Armed Bandit
-- **UCB**: Upper Confidence Bound
+1. In sidebar (**Control room**), keep policy as `qlearning`.
+2. Set subjective state:
+   - Sleep, Fatigue, Lactose intolerance, Social battery.
+3. Click **Request recommendation**.
+4. Open **Why this recommendation?** and read the narrative.
+5. Rate and submit.
+6. Repeat a few times (5–10 interactions gives meaningful analytics).
 
-### 4. Visualizations
-Explore the tabs:
-- **Q-Table**: See learned Q-values (Q-Learning only)
-- **Coffee Performance**: Compare coffee ratings
-- **Learning Curve**: Track improvement over time
-- **Context Analysis**: See context-based patterns
+---
 
-### 5. Hyperparameter Tuning
-Adjust in sidebar:
-- **Learning Rate (α)**: How quickly the agent learns (0.01-0.5)
-- **Discount Factor (γ)**: Importance of future rewards (0.1-0.99)
-- **Exploration Rate (ε)**: Balance exploration vs exploitation (0.0-1.0)
+## 3) Competition Features to Show
 
-## 💡 Tips for Best Results
+### A) Hybrid AI + ML
+- ML state/category + cosine shortlist
+- RL/bandit policy final action selection
 
-1. **Rate Multiple Coffees**: The more ratings, the better the agent learns
-2. **Use Context**: Enable context-aware mode for personalized recommendations
-3. **Experiment**: Try different strategies and hyperparameters
-4. **Be Consistent**: Rate honestly to help the agent learn your true preferences
-5. **Check Analytics**: Review the learning curve to see improvement
+### B) Dataset integration
+- Sidebar → **Competition data boost**
+- Click **Import datasets into catalog**
+- Confirm catalog size increases
 
-## 🔧 Troubleshooting
+### C) Validation + Ablation
+- Go to **Validation** tab
+- Show:
+  - state-level reward chart
+  - ablation comparison table and chart
 
-**App won't start?**
-- Make sure all dependencies are installed: `pip install -r requirements.txt`
-- Check Python version (3.8+ required)
+### D) Explainability
+- In recommendation panel, expand:
+  - **Why this recommendation?**
 
-**Agent not learning?**
-- Make sure you're submitting ratings after getting recommendations
-- Check that you're not resetting the agent too frequently
-- Verify hyperparameters are set correctly
+---
 
-**Visualizations empty?**
-- Some visualizations require interaction history
-- Q-Table tab only works with Q-Learning strategy
-- Make sure you've rated at least a few coffees
+## 4) Analytics Tabs (Current UI)
 
-## 📚 Understanding the Agent
+- **Q-Table**: state-action heatmap (Q-learning only)
+- **By coffee**: average reward per drink
+- **Curve**: learning trajectory over interactions
+- **Context**: performance by state/context
+- **Catalog**: source composition + feature table
+- **Validation**: evaluation + ablation outputs
 
-### Sense-Think-Act-Learn Cycle
+---
 
-1. **Sense**: Agent gathers context (time, weather, temperature)
-2. **Think**: Agent decides which coffee to recommend
-3. **Act**: Agent provides the recommendation
-4. **Learn**: Agent updates knowledge based on your rating
+## 5) Key Sidebar Controls
 
-### How Q-Learning Works
+- **Learning engine**: policy + α/γ/ε
+- **Environment**: time/weather/temperature
+- **How you feel**: subjective features
+- **Taste profile**: user preference vector
+- **Hybrid model**: turn classifier+shortlist pipeline on/off
+- **Competition data boost**: import external dataset rows
 
-- Agent maintains a Q-table: `Q(state, action) = expected_reward`
-- Updates Q-values using: `Q(s,a) = Q(s,a) + α[R + γ·max Q(s',a') - Q(s,a)]`
-- Uses epsilon-greedy: explore randomly ε% of time, exploit best action (1-ε)% of time
+---
 
-### Context States
+## 6) Troubleshooting
 
-States are combinations like:
-- `morning_sunny_hot`
-- `evening_rainy_cold`
-- `afternoon_moderate`
+### App starts but charts look empty
+- You need rated interactions first.
+- `Q-Table` requires `qlearning`.
 
-The agent learns which coffee works best in each context!
+### Recommendation is missing image
+- Imported coffees may not have a dedicated local image.
+- UI uses fallback coffee imagery automatically.
 
-## 🎓 For Your Seminar
+### Validation tab says insufficient data
+- Add more ratings (minimum ~5, better at 10+).
 
-This implementation includes:
-✅ Q-Learning algorithm
-✅ Context-aware recommendations (Sense phase)
-✅ Multi-Armed Bandits (Thompson Sampling, UCB)
-✅ Sense-Think-Act-Learn architecture
-✅ Professional Streamlit UI
-✅ Q-table visualization
-✅ Learning progress tracking
-✅ State persistence
+### Import button doesn’t change much
+- Rows are upserted by coffee name; existing names update.
 
-Perfect for demonstrating reinforcement learning in practice!
+---
+
+## 7) “Paper-ready” Checklist
+
+Before submitting/reporting:
+
+- [ ] At least 10–20 logged ratings
+- [ ] Validation tab populated
+- [ ] Ablation table populated
+- [ ] Explainability narrative shown in demo
+- [ ] Dataset import demonstrated
+- [ ] Screenshots exported for report appendix
+
+---
+
+For full architecture and technical details, see `README.md`.
 

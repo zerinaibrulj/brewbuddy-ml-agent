@@ -1,195 +1,175 @@
 # BrewBuddy AI ☕
 
-**AI Agent for Personalized Coffee Recommendations using Reinforcement Learning**
+Hybrid AI Agent + Machine Learning recommender for personalized coffee decisions.
 
-BrewBuddy is an intelligent AI barista that learns your coffee preferences through reinforcement learning. It uses Q-Learning, Thompson Sampling, and Upper Confidence Bound (UCB) algorithms to provide personalized coffee recommendations based on your ratings and contextual information.
-
-## 🌟 Features
-
-### Core Functionality
-* **Intelligent Recommendations**: AI agent recommends coffee using Q-Learning, Thompson Sampling, or UCB algorithms
-* **Context-Aware Learning**: Considers time of day, weather, and temperature for better recommendations
-* **Interactive Rating System**: Rate coffees (1-5) to help the agent learn your preferences
-* **Real-Time Learning**: Agent updates its knowledge immediately after each rating
-* **Multiple Learning Strategies**: Switch between Q-Learning, Thompson Sampling, and UCB
-
-### Sense-Think-Act-Learn Architecture
-* **Sense**: Gathers context (time of day, weather, temperature)
-* **Think**: Decides which coffee to recommend using selected strategy
-* **Act**: Provides the recommendation
-* **Learn**: Updates internal knowledge based on user feedback
-
-### Advanced Features
-* **Q-Table Visualization**: Interactive heatmap showing learned Q-values
-* **Performance Analytics**: Track average ratings and popularity of each coffee
-* **Learning Curve**: Visualize how the agent improves over time
-* **Context Analysis**: See how different contexts affect recommendations
-* **State Persistence**: Save and load agent state
-* **Professional UI**: Modern, responsive Streamlit interface
-
-## 🛠️ Technologies
-
-* **Backend**: Python 3.8+
-* **Frontend**: Streamlit
-* **Machine Learning**: 
-  - Q-Learning (Reinforcement Learning)
-  - Thompson Sampling (Multi-Armed Bandit)
-  - Upper Confidence Bound (UCB - Multi-Armed Bandit)
-* **Visualization**: Plotly
-* **Data Processing**: Pandas, NumPy
-
-## 📋 Requirements
-
-- Python 3.8 or higher
-- See `requirements.txt` for package dependencies
-
-## 🚀 Installation
-
-1. **Clone or download the repository**:
-   ```bash
-   cd "BrewBuddy Agent"
-   ```
-
-2. **Create and activate a virtual environment** (recommended):
-   ```bash
-   python -m venv venv
-   # Windows
-   venv\Scripts\activate
-   # Linux/Mac
-   source venv/bin/activate
-   ```
-
-3. **Install dependencies**:
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-## 🏃 Running the Application
-
-1. **Start the Streamlit app**:
-   ```bash
-   streamlit run streamlit_app.py
-   ```
-
-2. **Open your browser**:
-   The app will automatically open at `http://localhost:8501`
-
-3. **Start using BrewBuddy**:
-   - Click "Get Coffee Recommendation" to receive a suggestion
-   - Rate the coffee (1-5 stars)
-   - Watch the agent learn and improve over time!
-
-## 📖 How It Works
-
-### Q-Learning Algorithm
-The agent uses Q-Learning to learn the optimal action (coffee) for each state (context). The Q-value update rule is:
-
-```
-Q(s,a) = Q(s,a) + α[R + γ·max Q(s',a') - Q(s,a)]
-```
-
-Where:
-- **α (alpha)**: Learning rate (how quickly the agent learns)
-- **γ (gamma)**: Discount factor (importance of future rewards)
-- **R**: Reward (user rating 1-5)
-- **ε (epsilon)**: Exploration rate (balance between exploration and exploitation)
-
-### Context-Aware States
-The agent considers:
-- **Time of Day**: Morning, Afternoon, Evening, Night
-- **Weather**: Sunny, Rainy, Cloudy, Cold, Hot
-- **Temperature**: Hot (>25°C), Cold (<15°C), Moderate
-
-### Multi-Armed Bandit Alternatives
-- **Thompson Sampling**: Bayesian approach using Beta distributions
-- **UCB**: Upper Confidence Bound for exploration-exploitation balance
-
-## 🎯 Usage Guide
-
-### Getting Recommendations
-1. Configure agent settings in the sidebar (learning rate, discount factor, etc.)
-2. Set context information (time of day, weather, temperature)
-3. Click "Get Coffee Recommendation"
-4. Rate the recommended coffee
-5. Submit your rating to help the agent learn
-
-### Viewing Analytics
-- **Q-Table Tab**: See the learned Q-values in a heatmap
-- **Coffee Performance Tab**: Compare average ratings across different coffees
-- **Learning Curve Tab**: Track improvement over time
-- **Context Analysis Tab**: Understand how context affects recommendations
-
-### Saving Progress
-- Agent state is automatically saved after each rating
-- Use "Save Agent State" button to manually save
-- Use "Reset Agent" to start fresh
-
-## 📊 Project Structure
-
-```
-BrewBuddy Agent/
-├── streamlit_app.py          # Main Streamlit application
-├── brewbuddy_agent.py        # Q-Learning agent implementation
-├── requirements.txt          # Python dependencies
-├── README.md                # This file
-├── agent_state.json         # Saved agent state (auto-generated)
-
-```
-
-## 🔬 Algorithm Details
-
-### Q-Learning
-- **States**: Context combinations (e.g., "morning_sunny_hot")
-- **Actions**: Coffee selections
-- **Rewards**: User ratings (1-5)
-- **Update**: Bellman equation with learning rate and discount factor
-
-### Thompson Sampling
-- Uses Beta distribution for each coffee
-- Samples from distribution to balance exploration/exploitation
-- Updates alpha and beta parameters based on ratings
-
-### Upper Confidence Bound (UCB)
-- Calculates confidence intervals for each coffee
-- Balances exploitation (high average reward) with exploration (uncertainty)
-- Formula: `UCB = avg_reward + c·√(ln(total_pulls) / count)`
-
-## 🎓 Educational Value
-
-This project demonstrates:
-- Reinforcement Learning in practice
-- Multi-Armed Bandit problems
-- Context-aware recommendation systems
-- Interactive machine learning
-- Real-time learning from user feedback
-
-## 📝 Notes
-
-- The agent learns from your ratings and improves over time
-- Context-aware mode provides more personalized recommendations
-- Different learning strategies may perform better for different users
-- Agent state persists between sessions
-- For best results, rate multiple coffees to help the agent learn
-
-## 🤝 Contributing
-
-This is a seminar project. Feel free to extend it with:
-- More coffee options
-- Additional context features
-- Different reward functions
-- Advanced visualization
-- Integration with real coffee databases
-
-## 📄 License
-
-This project is for educational purposes.
-
-## 🙏 Acknowledgments
-
-- Professor's feedback and suggestions for Multi-Armed Bandits and context-aware recommendations
-- Streamlit community for the excellent framework
-- Coffee enthusiasts everywhere ☕
+BrewBuddy is built as a competition-ready prototype where:
+- **ML layer** understands user context and preference fit,
+- **AI layer** selects actions adaptively using reinforcement/bandit policies,
+- **Data layer** persists learning and supports dataset-driven catalog expansion.
 
 ---
 
-**Enjoy your personalized coffee recommendations!** ☕✨
+## What BrewBuddy Does
+
+BrewBuddy combines:
+1. **State understanding** (subjective + external context),
+2. **Content-based matching** (need vector vs coffee vectors via cosine similarity),
+3. **Policy selection** (Q-learning / Thompson / UCB) over a shortlist,
+4. **Continuous learning** from user ratings.
+
+It supports both classic RL behavior and a modern hybrid ML workflow.
+
+---
+
+## Core Implemented Features
+
+### 1) Subjective + External Feature Engineering
+- **Subjective**: `sleep_hours`, `fatigue`, `lactose_intolerance`, `social_battery`
+- **External**: `time_of_day`, `weather`, `temperature`
+- These are used to build richer context/state keys and recommendation logic.
+
+### 2) Hybrid Decision Pipeline
+- **Classifier layer** maps current state to categories (e.g., `extreme_caffeine`, `comfort`, `balanced`, etc.).
+- **Content layer** computes cosine similarity between current need vector and coffee feature vectors.
+- **Policy layer** chooses the final recommendation from the shortlisted set using:
+  - `qlearning`
+  - `thompson`
+  - `ucb`
+
+### 3) Persistent Data Layer (SQLite)
+Database: `data/brewbuddy.db`
+- `coffee_items` (catalog + normalized features)
+- `user_profile` (taste preferences)
+- `interaction_log` (full learning history)
+
+### 4) Dataset Integration
+- Built-in import pipeline for:
+  - `brewbuddy_data/datasets/simplified_coffee.csv`
+  - `brewbuddy_data/datasets/coffee_analysis.csv`
+- New rows are normalized and upserted into `coffee_items`.
+
+### 5) Explainability
+- Every recommendation can show a **narrative explanation**:
+  - predicted state,
+  - cosine match relevance,
+  - active constraints (e.g., lactose),
+  - final policy decision context.
+
+### 6) Evaluation + Ablation
+- Validation tab includes:
+  - state-level reward analysis
+  - coverage indicators
+  - offline ablation comparison
+- Ablations compare:
+  - Hybrid (logged)
+  - Cosine-only
+  - Content-only
+  - Bandit-mean
+  - Random
+
+### 7) Modern UI / UX
+- Premium dark interface (gold/coffee accents)
+- Card-based recommendation display + alternatives
+- Analytics tabs for:
+  - Q-Table
+  - By coffee
+  - Curve
+  - Context
+  - Catalog
+  - Validation
+
+---
+
+## Tech Stack
+
+- Python 3.8+
+- Streamlit
+- Pandas / NumPy
+- scikit-learn
+- Plotly
+- SQLite (built-in `sqlite3`)
+- Pillow
+
+See `requirements.txt` for exact dependencies.
+
+---
+
+## Installation
+
+```bash
+python -m venv venv
+# Windows
+venv\Scripts\activate
+# Linux/Mac
+source venv/bin/activate
+
+pip install -r requirements.txt
+```
+
+---
+
+## Run
+
+```bash
+streamlit run streamlit_app.py
+```
+
+Open: `http://localhost:8501`
+
+---
+
+## Recommended Demo Flow
+
+1. Launch app and open sidebar “Control room”.
+2. Set context + subjective state.
+3. Request recommendation and inspect explainability narrative.
+4. Rate recommendation.
+5. Open **Validation** tab to view evaluation + ablations.
+6. Use **Competition data boost** to import dataset rows and expand catalog.
+
+---
+
+## Project Structure
+
+```text
+BrewBuddy - ML - Agent/
+├── streamlit_app.py
+├── brewbuddy_agent.py
+├── hybrid_ml.py
+├── subjective_context.py
+├── background_worker.py
+├── run_background_worker.py
+├── brewbuddy_data/
+│   ├── __init__.py
+│   ├── database.py
+│   └── datasets/
+│       ├── simplified_coffee.csv
+│       └── coffee_analysis.csv
+├── data/
+│   └── brewbuddy.db               # generated at runtime
+├── agent_state.json               # generated at runtime
+├── QUICKSTART.md
+└── README.md
+```
+
+---
+
+## Competition Readiness Notes
+
+What is already strong:
+- Hybrid AI + ML architecture
+- Real persistence and dataset integration
+- Explainability narrative
+- Offline evaluation and ablations
+- Professional UI and analytics
+
+What to improve further for top-tier judging:
+- Add confusion matrix / classification metrics from a trained classifier
+- Add exported result snapshots (CSV/figures) for paper appendix
+- Add reproducibility checklist (random seeds, run configs, data versioning)
+
+---
+
+## License
+
+Educational / academic use.
