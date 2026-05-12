@@ -460,6 +460,13 @@ st.markdown(
         background: linear-gradient(180deg, #0c0c12 0%, #11121a 100%) !important;
         border-right: 1px solid var(--bb-border) !important;
     }}
+    [data-testid="stSidebar"] > div:first-child {{
+        width: 360px !important;
+    }}
+    [data-testid="stSidebar"] {{
+        min-width: 360px !important;
+        max-width: 360px !important;
+    }}
     [data-testid="stSidebar"] [data-baseweb] {{ color: var(--bb-text) !important; }}
     [data-testid="stSidebar"] h1, [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3, [data-testid="stSidebar"] p {{ color: var(--bb-text) !important; }}
     [data-testid="stSidebar"] .stExpander details {{
