@@ -457,17 +457,71 @@ st.markdown(
     .stButton>button {{ border-radius: 12px !important; font-family: 'Outfit', sans-serif !important; }}
     /* Sidebar */
     [data-testid="stSidebar"] {{
-        background: linear-gradient(180deg, #0a0a0d 0%, #0e0e14 100%) !important;
+        background: linear-gradient(180deg, #0c0c12 0%, #11121a 100%) !important;
         border-right: 1px solid var(--bb-border) !important;
     }}
     [data-testid="stSidebar"] [data-baseweb] {{ color: var(--bb-text) !important; }}
     [data-testid="stSidebar"] h1, [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3, [data-testid="stSidebar"] p {{ color: var(--bb-text) !important; }}
     [data-testid="stSidebar"] .stExpander details {{
-        background: var(--bb-surface) !important;
-        border: 1px solid var(--bb-border) !important;
+        background: linear-gradient(180deg, rgba(33, 30, 42, 0.86) 0%, rgba(22, 22, 30, 0.86) 100%) !important;
+        border: 1px solid rgba(212, 166, 116, 0.22) !important;
         border-radius: var(--bb-radius-sm) !important;
+        box-shadow: 0 0 0 1px rgba(212, 166, 116, 0.05), inset 0 1px 0 rgba(255,255,255,0.03) !important;
+        transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+    }}
+    [data-testid="stSidebar"] .stExpander details:hover {{
+        border-color: rgba(212, 166, 116, 0.4) !important;
+        background: linear-gradient(180deg, rgba(38, 34, 48, 0.95) 0%, rgba(25, 23, 34, 0.95) 100%) !important;
+        box-shadow: 0 8px 24px -18px rgba(212, 166, 116, 0.35), 0 0 0 1px rgba(212, 166, 116, 0.12) !important;
+    }}
+    [data-testid="stSidebar"] .stExpander summary {{
+        border-radius: 9px !important;
+        padding: 0.16rem 0.3rem !important;
+        background: transparent !important;
+    }}
+    [data-testid="stSidebar"] .stExpander summary:hover {{
+        background: rgba(212, 166, 116, 0.08) !important;
     }}
     [data-testid="stSidebar"] .stExpander summary p {{ font-size: 0.88rem; font-weight: 600; }}
+    [data-testid="stSidebar"] .stExpander summary svg {{
+        color: rgba(212, 166, 116, 0.9) !important;
+    }}
+    /* Sidebar button tuning (avoid harsh hover flash) */
+    [data-testid="stSidebar"] .stButton>button {{
+        height: 2.35rem !important;
+        min-height: 2.35rem !important;
+        max-height: 2.35rem !important;
+        width: 100% !important;
+        min-width: 100% !important;
+        padding: 0 !important;
+        line-height: 1 !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        box-sizing: border-box !important;
+        border-radius: 10px !important;
+        transition: all 0.2s ease !important;
+    }}
+    [data-testid="stSidebar"] .stButton>button[kind="secondary"] {{
+        background: rgba(40, 39, 52, 0.95) !important;
+        border: 1px solid rgba(212, 166, 116, 0.26) !important;
+        color: #e8e1d8 !important;
+    }}
+    [data-testid="stSidebar"] .stButton>button[kind="secondary"]:hover {{
+        background: rgba(52, 50, 66, 0.98) !important;
+        border-color: rgba(212, 166, 116, 0.45) !important;
+        color: #f6ede2 !important;
+        box-shadow: 0 10px 24px -16px rgba(212, 166, 116, 0.42) !important;
+    }}
+    [data-testid="stSidebar"] .stButton>button[kind="primary"] {{
+        background: linear-gradient(120deg, #bb7a46 0%, #d8aa79 100%) !important;
+        color: #16110c !important;
+    }}
+    [data-testid="stSidebar"] .stButton>button[kind="primary"]:hover {{
+        background: linear-gradient(120deg, #c98650 0%, #e0b789 100%) !important;
+        box-shadow: 0 12px 24px -14px rgba(217, 157, 101, 0.6) !important;
+        transform: translateY(-1px);
+    }}
     .bb-sidebar-kicker {{ font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.2em; color: {ACCENT}; font-weight: 600; margin-bottom: 0.2rem; }}
     .bb-sidebar-title {{ font-family: 'Fraunces', serif; font-size: 1.35rem; color: #f0e8e0; margin: 0 0 1.25rem 0; font-weight: 600; }}
     /* Tabs (analytics) */
@@ -624,7 +678,12 @@ with st.sidebar:
         if use_context:
             c1, c2 = st.columns(2)
             with c1:
-                time_of_day = st.selectbox("Time", ["morning", "afternoon", "evening", "night"], index=0)
+                time_of_day = st.selectbox(
+                    "Time",
+                    [None, "morning", "afternoon", "evening", "night"],
+                    index=0,
+                    format_func=lambda t: t if t is not None else "-",
+                )
             with c2:
                 weather = st.selectbox("Sky", [None, "sunny", "rainy", "cloudy", "cold", "hot"], index=0, format_func=lambda w: w or "—")
             temperature = st.slider("Temperature (°C)", 0, 40, 20, 1)
@@ -683,7 +742,7 @@ with st.sidebar:
     st.divider()
     b1, b2 = st.columns(2)
     with b1:
-        if st.button("Save state", use_container_width=True, type="secondary", help="agent_state.json"):
+        if st.button("Save state", use_container_width=True, type="primary", help="agent_state.json"):
             st.session_state.agent.save_state()
             st.toast("Agent state saved")
     with b2:
