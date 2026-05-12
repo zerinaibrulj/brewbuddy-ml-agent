@@ -4,6 +4,7 @@ BrewBuddy - AI + ML hybrid coffee recommender. Modern Streamlit UI.
 
 from __future__ import annotations
 
+import html
 import os
 import random
 from ast import literal_eval
@@ -304,11 +305,68 @@ st.markdown(
         margin-bottom: 0.5rem;
         font-family: 'Outfit', sans-serif;
     }}
-    .bb-ctx-prel {{
-        font-size: 0.78rem; color: var(--bb-text-muted) !important;
-        line-height: 1.5;
+    /* Live context: three-panel board */
+    .bb-ctx-board {{
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 0.65rem;
+        margin-top: 0.45rem;
+    }}
+    @media (max-width: 900px) {{
+        .bb-ctx-board {{ grid-template-columns: 1fr; }}
+    }}
+    .bb-ctx-panel {{
+        background: linear-gradient(165deg, rgba(14, 13, 20, 0.88) 0%, rgba(10, 10, 14, 0.72) 100%);
+        border: 1px solid rgba(212, 166, 116, 0.16);
+        border-radius: 12px;
+        padding: 0.7rem 0.8rem 0.75rem 0.8rem;
+        min-width: 0;
+    }}
+    .bb-ctx-panel-h {{
+        font-family: 'Outfit', system-ui, sans-serif;
+        font-size: 0.62rem;
+        font-weight: 700;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: {ACCENT};
+        margin: 0 0 0.55rem 0;
+        padding-bottom: 0.45rem;
+        border-bottom: 1px solid rgba(212, 166, 116, 0.14);
+    }}
+    .bb-ctx-rows {{ display: flex; flex-direction: column; gap: 0.28rem; }}
+    .bb-ctx-row {{
+        display: grid;
+        grid-template-columns: minmax(0, 5.6rem) minmax(0, 1fr);
+        gap: 0.4rem 0.65rem;
+        align-items: start;
+        font-size: 0.78rem;
+        line-height: 1.4;
+    }}
+    .bb-ctx-k {{
+        color: #9a9590 !important;
+        font-weight: 500;
+    }}
+    .bb-ctx-v {{
+        color: #ebe6e0 !important;
+        font-weight: 500;
+        text-align: right;
         word-break: break-word;
-        max-height: 3.2em; overflow: hidden;
+    }}
+    .bb-ctx-panel-note {{
+        margin: 0;
+        font-size: 0.76rem;
+        line-height: 1.5;
+        color: var(--bb-text-muted) !important;
+        font-style: italic;
+    }}
+    .bb-ctx-footer {{
+        margin-top: 0.85rem;
+        padding-top: 0.75rem;
+        border-top: 1px solid rgba(212, 166, 116, 0.12);
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+        flex-wrap: wrap;
     }}
     .bb-ml-badge {{
         display: inline-block;
@@ -684,6 +742,99 @@ COFFEE_DESCRIPTIONS = {
 }
 
 
+def _temperature_band_label(temperature: Optional[float]) -> str:
+    if temperature is None:
+        return ""
+    t = float(temperature)
+    if t >= 28:
+        return "hot"
+    if t < 15:
+        return "cold"
+    return "moderate"
+
+
+def build_live_context_board_html(
+    *,
+    use_context: bool,
+    use_subjective: bool,
+    time_of_day: Optional[str],
+    weather: Optional[str],
+    temperature: Optional[float],
+    subjective_payload: dict,
+    profile: dict,
+) -> str:
+    """Structured HTML for the Live context card (sidebar selections, human-readable)."""
+
+    def kv(label: str, value: str) -> str:
+        return (
+            '<div class="bb-ctx-row">'
+            f'<span class="bb-ctx-k">{html.escape(label)}</span>'
+            f'<span class="bb-ctx-v">{html.escape(value)}</span>'
+            "</div>"
+        )
+
+    def panel(title: str, body: str) -> str:
+        return (
+            '<div class="bb-ctx-panel">'
+            f'<div class="bb-ctx-panel-h">{html.escape(title)}</div>'
+            f'<div class="bb-ctx-rows">{body}</div>'
+            "</div>"
+        )
+
+    def note(text: str) -> str:
+        return f'<p class="bb-ctx-panel-note">{html.escape(text)}</p>'
+
+    # — Environment
+    if use_context:
+        time_v = (
+            str(time_of_day).replace("_", " ").strip().capitalize()
+            if time_of_day
+            else "Local clock (Time set to —)"
+        )
+        sky_v = str(weather).capitalize() if weather else "—"
+        if temperature is not None:
+            band = _temperature_band_label(temperature)
+            temp_v = f"{int(round(float(temperature)))}°C · {band}"
+        else:
+            temp_v = "—"
+        env_body = kv("Time", time_v) + kv("Sky", sky_v) + kv("Temperature", temp_v)
+    else:
+        env_body = note("Environment controls are off. The model does not use your time, sky, or temperature picks as context keys.")
+
+    # — How you feel
+    if use_subjective:
+        sh = float(subjective_payload.get("sleep_hours", 7.0))
+        fat = int(subjective_payload.get("fatigue", 5))
+        lac = "Yes" if subjective_payload.get("lactose_intolerance") else "No"
+        soc = str(subjective_payload.get("social_battery", "Full"))
+        subj_body = (
+            kv("Sleep", f"~{sh:.1f} h (last 24h)")
+            + kv("Fatigue", f"{fat} / 10")
+            + kv("Lactose sensitivity", lac)
+            + kv("Social battery", soc)
+        )
+    else:
+        subj_body = note("Subjective inputs are off. Sleep, fatigue, and social battery use neutral defaults.")
+
+    # — Taste profile
+    p_strong = float(profile.get("pref_strong_caffeine", 0.5))
+    p_lf = bool(profile.get("pref_lactose_free", 0))
+    p_bit = float(profile.get("pref_low_bitterness", 0.5))
+    taste_body = (
+        kv("Bold / strong drinks", f"{p_strong:.0%} preference")
+        + kv("Mild / low bitterness", f"{p_bit:.0%} preference")
+        + kv("Prefer lactose-free", "Yes" if p_lf else "No")
+    )
+
+    return (
+        '<div class="bb-ctx-board" role="region" aria-label="Current session context">'
+        + panel("Environment", env_body)
+        + panel("How you feel", subj_body)
+        + panel("Taste profile", taste_body)
+        + "</div>"
+    )
+
+
 def get_coffee_image_path(coffee_name: str):
     normalized = coffee_name.lower()
     image_mapping = {
@@ -887,17 +1038,27 @@ with main:
         """,
         unsafe_allow_html=True,
     )
+    ctx_board = build_live_context_board_html(
+        use_context=use_context,
+        use_subjective=use_subjective,
+        time_of_day=time_of_day,
+        weather=weather,
+        temperature=temperature,
+        subjective_payload=subjective_payload,
+        profile=profile,
+    )
     cand = ", ".join(ag._candidate_coffees[:3]) if use_hybrid and ag._candidate_coffees else ""
-    ctx_short = (ag.current_context or "—")[:200]
+    ml_state_disp = html.escape(ag.current_ml_state.replace("_", " ").title())
+    cand_disp = html.escape(cand or "—")
     st.markdown(
         f"""
         <div class="bb-glass">
             <div class="bb-section-label">Live context</div>
-            <p class="bb-ctx-prel">{ctx_short}{"…" if (ag.current_context and len(ag.current_context) > 200) else ""}</p>
-            <p style="margin:0.75rem 0 0 0; display:flex; align-items:center; gap:0.6rem; flex-wrap:wrap;">
-                <span class="bb-ml-badge">{ag.current_ml_state.replace("_", " ")}</span>
-                <span style="color:#8a8680;font-size:0.8rem;">Top matches: {cand or "—"}</span>
-            </p>
+            {ctx_board}
+            <div class="bb-ctx-footer">
+                <span class="bb-ml-badge">{ml_state_disp}</span>
+                <span style="color:#8a8680;font-size:0.8rem;">Top matches: {cand_disp}</span>
+            </div>
         </div>
         """,
         unsafe_allow_html=True,
