@@ -705,7 +705,12 @@ with st.sidebar:
                     format_func=lambda t: t if t is not None else "-",
                 )
             with c2:
-                weather = st.selectbox("Sky", [None, "sunny", "rainy", "cloudy", "cold", "hot"], index=0, format_func=lambda w: w or "—")
+                weather = st.selectbox(
+                    "Sky",
+                    [None, "sunny", "rainy", "cloudy", "cold", "hot"],
+                    index=0,
+                    format_func=lambda w: w if w is not None else "-",
+                )
             temperature = st.slider("Temperature (°C)", 0, 40, 20, 1)
         else:
             time_of_day, weather, temperature = None, None, None
@@ -731,7 +736,7 @@ with st.sidebar:
         )
         p_lf = st.toggle("Prefers lactose-free / no dairy in drinks", value=bool(st.session_state.user_profile.get("pref_lactose_free", 0)))
         p_bitter = st.slider("Likes mild / low bitterness", 0.0, 1.0, st.session_state.user_profile.get("pref_low_bitterness", 0.5), 0.05)
-        c_save, _ = st.columns([1, 0.1])
+        _, c_save, _ = st.columns([1, 6, 1])
         with c_save:
             if st.button("Save profile to SQLite", use_container_width=True, type="primary"):
                 save_user_profile(p_strong, 1 if p_lf else 0, p_bitter)
