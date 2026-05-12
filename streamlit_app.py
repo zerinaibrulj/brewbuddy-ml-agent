@@ -46,6 +46,7 @@ def _apply_plot_theme(fig: go.Figure) -> go.Figure:
         plot_bgcolor="rgba(14, 14, 20, 0.85)",
         font=dict(color=PLOT_FONT, family="ui-sans-serif, system-ui, sans-serif", size=12),
         title_font=dict(size=15, color=ACCENT),
+        margin=dict(l=56, r=28, t=48, b=64),
         xaxis=dict(
             gridcolor="rgba(212, 166, 116, 0.12)", zerolinecolor="rgba(255,255,255,0.05)", showgrid=True
         ),
@@ -54,6 +55,14 @@ def _apply_plot_theme(fig: go.Figure) -> go.Figure:
         ),
     )
     return fig
+
+
+def _truncate_tick_labels(labels: list, max_len: int = 22) -> list:
+    out = []
+    for x in labels:
+        s = str(x)
+        out.append(s if len(s) <= max_len else s[: max_len - 1] + "…")
+    return out
 
 
 def _to_dict_safe(value) -> dict:
@@ -230,7 +239,7 @@ st.markdown(
     }}
     .block-container {{
         padding-top: 1.25rem;
-        max-width: 1200px;
+        max-width: 1180px;
     }}
     /* Typography */
     h1, h2, h3, .stMarkdown p, .stText {{ font-family: 'Outfit', system-ui, sans-serif !important; color: var(--bb-text) !important; }}
@@ -362,34 +371,6 @@ st.markdown(
         background: rgba(212, 166, 116, 0.2);
         border: 1px solid rgba(212, 166, 116, 0.35);
         margin-right: 0.25rem;
-    }}
-    .bb-kpi-grid {{
-        display: grid;
-        grid-template-columns: repeat(4, minmax(0, 1fr));
-        gap: 0.6rem;
-        margin: 0.2rem 0 1rem 0;
-    }}
-    .bb-kpi {{
-        background: linear-gradient(165deg, rgba(20, 18, 24, 0.92) 0%, rgba(14, 13, 18, 0.92) 100%);
-        border: 1px solid rgba(212, 166, 116, 0.25);
-        border-radius: 10px;
-        padding: 0.6rem 0.7rem;
-    }}
-    .bb-kpi-label {{
-        font-size: 0.62rem;
-        color: var(--bb-text-muted) !important;
-        letter-spacing: 0.1em;
-        text-transform: uppercase;
-        margin: 0;
-    }}
-    .bb-kpi-value {{
-        font-size: 1.05rem;
-        color: #f2e2cf !important;
-        font-family: 'Fraunces', serif;
-        margin: 0.18rem 0 0 0;
-    }}
-    @media (max-width: 980px) {{
-        .bb-kpi-grid {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }}
     }}
     .bb-kpi-grid {{
         display: grid;
@@ -582,13 +563,81 @@ st.markdown(
     [data-testid="stExpanderDetails"] span {{
         color: #f4f4f6 !important;
     }}
+    /* JSON inspector (engineering expander) */
+    [data-testid="stJson"] > div,
+    [data-testid="stJson"] pre {{
+        background: rgba(10, 10, 14, 0.92) !important;
+        border: 1px solid rgba(212, 166, 116, 0.2) !important;
+        border-radius: 10px !important;
+        color: #ddd8d2 !important;
+        font-size: 0.78rem !important;
+    }}
     /* Metric streamlit */
     [data-testid="stMetricValue"] {{ color: {ACCENT} !important; font-family: 'Fraunces', serif !important; font-size: 1.5rem; }}
     [data-testid="stMetricLabel"] > div {{ color: var(--bb-text-muted) !important; text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.7rem; }}
-    /* Dataframe */
-    [data-testid="stDataFrame"] {{ border: 1px solid var(--bb-border) !important; border-radius: 12px !important; overflow: hidden; }}
+    /* Dataframe — dark chrome (Glide grid) */
+    [data-testid="stDataFrame"] {{
+        border: 1px solid var(--bb-border) !important;
+        border-radius: 12px !important;
+        overflow: hidden !important;
+        background: rgba(16, 16, 22, 0.95) !important;
+        box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+    }}
+    [data-testid="stDataFrame"] [role="grid"],
+    [data-testid="stDataFrame"] [data-testid="stDataFrameResizable"] {{
+        background: rgba(12, 12, 16, 0.98) !important;
+    }}
+    [data-testid="stDataFrame"] [role="columnheader"],
+    [data-testid="stDataFrame"] [role="gridcell"] {{
+        border-color: rgba(212, 166, 116, 0.12) !important;
+    }}
+    [data-testid="stDataFrame"] [role="columnheader"] {{
+        background: linear-gradient(180deg, rgba(32, 30, 40, 0.98) 0%, rgba(22, 21, 28, 0.98) 100%) !important;
+        color: #ebe4dc !important;
+        font-weight: 600 !important;
+        font-size: 0.78rem !important;
+    }}
+    [data-testid="stDataFrame"] [role="gridcell"] {{
+        color: #ddd8d2 !important;
+        font-size: 0.82rem !important;
+    }}
+    /* Section rules — full block width (avoids short markdown hr inside columns) */
+    .bb-section-rule {{
+        display: block;
+        width: 100%;
+        height: 1px;
+        margin: 2rem 0 1.35rem 0;
+        border: none;
+        background: linear-gradient(90deg, transparent 0%, rgba(212, 166, 116, 0.35) 20%, rgba(212, 166, 116, 0.35) 80%, transparent 100%);
+    }}
+    .bb-section-rule--compact {{ margin: 1.25rem 0 1rem 0; }}
+    /* Full-width CTA band (only bordered containers in main) */
+    [data-testid="stMainBlockContainer"] [data-testid="stVerticalBlockBorderWrapper"] {{
+        background: linear-gradient(165deg, rgba(22, 20, 28, 0.55) 0%, rgba(12, 12, 16, 0.45) 100%) !important;
+        border-color: rgba(212, 166, 116, 0.22) !important;
+        border-radius: var(--bb-radius) !important;
+        padding: 0.85rem 0.5rem 1rem 0.5rem !important;
+        box-shadow: 0 0 0 1px rgba(212, 166, 116, 0.06), 0 18px 40px -28px rgba(0,0,0,0.65);
+    }}
+    /* Plotly charts */
+    .js-plotly-plot {{
+        border-radius: 12px !important;
+        overflow: hidden;
+        border: 1px solid rgba(212, 166, 116, 0.14);
+        box-shadow: 0 12px 36px -20px rgba(0,0,0,0.55);
+    }}
+    /* Tabs: breathing room */
+    .stTabs [data-baseweb="tab-panel"] {{
+        padding-top: 0.85rem !important;
+    }}
+    /* Focus rings (keyboard / a11y) */
+    .stButton>button:focus-visible,
+    [data-baseweb="tab"]:focus-visible {{
+        outline: 2px solid {ACCENT} !important;
+        outline-offset: 2px !important;
+    }}
     /* Divider */
-    hr {{ border-color: var(--bb-border) !important; margin: 2rem 0 !important; }}
+    hr {{ border: none !important; height: 1px !important; background: linear-gradient(90deg, transparent, var(--bb-border), transparent) !important; margin: 2rem 0 !important; width: 100% !important; }}
     .bb-sec-h {{ font-family: 'Fraunces', serif; font-size: 1.4rem; color: #e8e3dd !important; margin: 0 0 0.4rem 0; font-weight: 600; }}
     [data-testid="stImage"] img {{
         border-radius: 14px !important;
@@ -780,13 +829,13 @@ with st.sidebar:
         st.caption(f"Current catalog size: **{len(st.session_state.agent.coffees)}** drinks")
 
     st.divider()
-    b1, b2 = st.columns(2)
+    _, b1, b2, _ = st.columns([0.12, 1, 1, 0.12])
     with b1:
-        if st.button("Save state", use_container_width=True, type="primary", help="agent_state.json"):
+        if st.button("Save state", use_container_width=True, type="primary", help="Persist to agent_state.json"):
             st.session_state.agent.save_state()
             st.toast("Agent state saved")
     with b2:
-        if st.button("Reset", use_container_width=True, type="primary"):
+        if st.button("Reset agent", use_container_width=True, type="secondary", help="Clear learning; keeps sidebar settings"):
             if "background_worker" in st.session_state:
                 st.session_state.background_worker.stop()
             st.session_state.agent = BrewBuddyAgent(
@@ -812,7 +861,7 @@ st.markdown(
     """
 <div class="bb-hero">
     <div class="bb-hero-title">BrewBuddy</div>
-    <p class="bb-hero-sub"></p>
+    <p class="bb-hero-sub">Context-aware picks · hybrid ML · adaptive policy</p>
     <div class="bb-pill-row">
         <span class="bb-pill">Classification</span>
         <span class="bb-pill">Content match</span>
@@ -821,6 +870,23 @@ st.markdown(
 </div>""",
     unsafe_allow_html=True,
 )
+
+# —— Sense once per run (sidebar controls + hybrid view stay in sync) ——
+subjective_payload = {
+    "sleep_hours": float(sleep_h) if use_subjective else 7.0,
+    "fatigue": int(fatigue) if use_subjective else 5,
+    "lactose_intolerance": bool(lactose) if use_subjective else False,
+    "social_battery": str(social) if use_subjective else "Full",
+}
+profile = st.session_state.user_profile
+st.session_state.agent.sense(
+    time_of_day=time_of_day if use_context else None,
+    weather=weather if use_context else None,
+    temperature=temperature if use_context else None,
+    subjective=subjective_payload if use_subjective else None,
+    user_profile=profile,
+)
+ag = st.session_state.agent
 
 # —— Body ——
 main, aside = st.columns([1.55, 0.9])
@@ -833,22 +899,6 @@ with main:
         """,
         unsafe_allow_html=True,
     )
-
-    subjective_payload = {
-        "sleep_hours": float(sleep_h) if use_subjective else 7.0,
-        "fatigue": int(fatigue) if use_subjective else 5,
-        "lactose_intolerance": bool(lactose) if use_subjective else False,
-        "social_battery": str(social) if use_subjective else "Full",
-    }
-    profile = st.session_state.user_profile
-    st.session_state.agent.sense(
-        time_of_day=time_of_day if use_context else None,
-        weather=weather if use_context else None,
-        temperature=temperature if use_context else None,
-        subjective=subjective_payload if use_subjective else None,
-        user_profile=profile,
-    )
-    ag = st.session_state.agent
     cand = ", ".join(ag._candidate_coffees[:3]) if use_hybrid and ag._candidate_coffees else ""
     ctx_short = (ag.current_context or "—")[:200]
     st.markdown(
@@ -865,25 +915,6 @@ with main:
         unsafe_allow_html=True,
     )
     st.markdown("")
-
-    _pad_l, c_intel_action, _pad_r = st.columns([1, 4, 1])
-    with c_intel_action:
-        with st.expander("Engineering: need vector & cosine scores", expanded=False):
-            st.caption(
-                "Four dimensions: stimulation, comfort, dairy concern, mildness. Compares to `coffee_items` in SQLite."
-            )
-            st.json({"need": ag.last_need_vector, "cosine": ag.last_cosine_scores or {}})
-
-        if st.button("Request recommendation", type="primary", use_container_width=True, key="btn_get"):
-            st.session_state.agent.add_context_request(
-                time_of_day=time_of_day if use_context else None,
-                weather=weather if use_context else None,
-                temperature=temperature if use_context else None,
-                subjective=subjective_payload if use_subjective else None,
-                user_profile=profile,
-            )
-            st.info("Queued. The worker will pick this up (respects cooldown & pending rating).")
-            st.rerun()
 
     current_pending = st.session_state.agent.pending_recommendation
     if current_pending != st.session_state.last_pending_recommendation:
@@ -1029,10 +1060,32 @@ with aside:
         )
     st.markdown("")
 
+# —— Full-width CTA (centered; same width for expander + primary action) ——
+st.markdown('<div class="bb-section-rule bb-section-rule--compact" aria-hidden="true"></div>', unsafe_allow_html=True)
+with st.container(border=True):
+    _cta_l, c_intel_action, _cta_r = st.columns([1, 2.4, 1])
+    with c_intel_action:
+        with st.expander("Engineering: need vector & cosine scores", expanded=False):
+            st.caption(
+                "Four dimensions: stimulation, comfort, dairy concern, mildness. Compares to `coffee_items` in SQLite."
+            )
+            st.json({"need": ag.last_need_vector, "cosine": ag.last_cosine_scores or {}})
+
+        if st.button("Request recommendation", type="primary", use_container_width=True, key="btn_get"):
+            st.session_state.agent.add_context_request(
+                time_of_day=time_of_day if use_context else None,
+                weather=weather if use_context else None,
+                temperature=temperature if use_context else None,
+                subjective=subjective_payload if use_subjective else None,
+                user_profile=profile,
+            )
+            st.info("Queued. The worker will pick this up (respects cooldown & pending rating).")
+            st.rerun()
+
 # —— Analytics ——
-st.markdown("---")
+st.markdown('<div class="bb-section-rule" aria-hidden="true"></div>', unsafe_allow_html=True)
 st.markdown(
-    '<p class="bb-section-label" style="margin-top:0.5rem;">Analytics</p><h3 class="bb-sec-h" style="font-size:1.35rem; margin:0 0 1.25rem 0;">Learning & performance</h3>',
+    '<p class="bb-section-label" style="margin-top:0.15rem;">Analytics</p><h3 class="bb-sec-h" style="font-size:1.35rem; margin:0 0 1.25rem 0;">Learning & performance</h3>',
     unsafe_allow_html=True,
 )
 
@@ -1076,15 +1129,36 @@ with t1:
     if st.session_state.agent.strategy == "qlearning":
         q_df = st.session_state.agent.get_q_table_df()
         if not q_df.empty:
+            q_plot = q_df.copy()
+            long_states = [str(c) for c in q_plot.columns]
+            q_plot.columns = _truncate_tick_labels(long_states, max_len=24)
             fig = px.imshow(
-                q_df.T,
-                labels=dict(x="State", y="Coffee", color="Q"),
+                q_plot.T,
+                labels=dict(x="State (context key)", y="Coffee", color="Q-value"),
                 color_continuous_scale=[[0, "rgba(8,8,10,0.3)"], [0.5, "rgba(212,166,116,0.55)"], [1, ACCENT2]],
                 aspect="auto",
             )
             _apply_plot_theme(fig)
+            n_states = max(len(q_plot.columns), 1)
+            bottom_margin = min(220, max(72, 28 + n_states * 5))
+            fig.update_layout(
+                title=dict(text="Q-table · state × drink", x=0.5, xanchor="center", font=dict(size=15, color=ACCENT)),
+                margin=dict(l=72, r=20, t=56, b=bottom_margin),
+                coloraxis_colorbar=dict(
+                    title=dict(text="Q-value", font=dict(size=11, color=PLOT_FONT)),
+                    tickfont=dict(size=10, color=PLOT_MUTED),
+                ),
+            )
+            fig.update_xaxes(
+                tickangle=-38,
+                tickfont=dict(size=9, color=PLOT_MUTED),
+                side="bottom",
+                showgrid=False,
+            )
+            fig.update_yaxes(tickfont=dict(size=10, color=PLOT_FONT), showgrid=False)
             st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
-            st.dataframe(q_df.style.format("{:.2f}").background_gradient(cmap="copper", axis=None), use_container_width=True, height=280)
+            num_cols = {c: st.column_config.NumberColumn(str(c)[:40], format="%.2f") for c in q_df.columns}
+            st.dataframe(q_df, use_container_width=True, height=280, hide_index=True, column_config=num_cols)
         else:
             st.info("Interact and rate a few times to build the Q-table.")
     else:
@@ -1103,10 +1177,13 @@ with t2:
         dfp = pd.DataFrame({"Coffee": names, "Avg": avgs, "N": cnts})
         fig = px.bar(
             dfp, x="Coffee", y="Avg", color="N", text="Avg",
-            color_continuous_scale=[[0, "rgba(8,8,10,0.2)"], [0.5, "rgba(212,166,116,0.60)"], [1, ACCENT2]]
+            color_continuous_scale=[[0, "rgba(8,8,10,0.2)"], [0.5, "rgba(212,166,116,0.60)"], [1, ACCENT2]],
+            title="Mean rating by drink (color = sample size)",
         )
         _apply_plot_theme(fig)
         fig.update_traces(texttemplate="%{text:.2f}", textposition="outside", marker_line_width=0, marker_cornerradius=4)
+        fig.update_layout(margin=dict(b=120))
+        fig.update_xaxes(tickangle=-35, tickfont=dict(size=9, color=PLOT_MUTED), automargin=True)
         st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
         st.dataframe(dfp.sort_values("Avg", ascending=False), use_container_width=True, height=200)
     else:
@@ -1137,7 +1214,10 @@ with t3:
                 line=dict(color=ACCENT, width=2.5, shape="spline"),
             )
         )
-        fig.update_layout(legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0, font_size=10))
+        fig.update_layout(
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0, font_size=10),
+            title=dict(text="Learning curve", x=0.5, xanchor="center", font=dict(size=15, color=ACCENT)),
+        )
         _apply_plot_theme(fig)
         fig.update_layout(xaxis_title="Interaction index", yaxis_title="Rating")
         st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
@@ -1173,10 +1253,13 @@ with t4:
                 st.caption(f"Top-performing contexts: {top_str}")
                 fig = px.bar(
                     csg, x="Context", y="Avg", color="N", text="Avg",
-                    color_continuous_scale=[[0, "rgba(5,5,8,0.2)"], [0.5, "rgba(212,166,116,0.55)"], [1, ACCENT2]]
+                    color_continuous_scale=[[0, "rgba(5,5,8,0.2)"], [0.5, "rgba(212,166,116,0.55)"], [1, ACCENT2]],
+                    title="Ratings by context key",
                 )
                 _apply_plot_theme(fig)
                 fig.update_traces(texttemplate="%{text:.2f}", textposition="outside", marker_cornerradius=4)
+                fig.update_layout(margin=dict(b=min(200, 60 + len(csg) * 4)))
+                fig.update_xaxes(tickangle=-40, tickfont=dict(size=8, color=PLOT_MUTED), automargin=True)
                 st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
                 st.dataframe(csg, use_container_width=True, height=220)
             else:
@@ -1211,7 +1294,9 @@ with t5:
         )
         fig.update_layout(
             showlegend=True,
-            legend=dict(orientation="h", yanchor="bottom", y=1.05, x=0),
+            title=dict(text="Catalog composition by source", x=0.5, xanchor="center", font=dict(size=15, color=ACCENT)),
+            legend=dict(orientation="h", yanchor="bottom", y=1.08, x=0),
+            margin=dict(t=52, b=48),
         )
         st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
         st.dataframe(
@@ -1254,6 +1339,8 @@ with t6:
         )
         _apply_plot_theme(fig)
         fig.update_traces(texttemplate="%{text:.2f}", textposition="outside")
+        fig.update_layout(margin=dict(b=100))
+        fig.update_xaxes(tickangle=-30, tickfont=dict(size=9, color=PLOT_MUTED), automargin=True)
         st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
         st.dataframe(by_state.rename(columns={"ml_state": "State", "avg_rating": "Avg Rating", "n": "Count"}), use_container_width=True)
 
