@@ -271,17 +271,6 @@ st.markdown(
         margin: 0 0 0.45rem 0;
         text-shadow: 0 6px 20px rgba(212, 166, 116, 0.2);
     }}
-    .bb-hero-sub {{
-        font-family: 'Outfit', sans-serif;
-        font-size: 1.02rem;
-        font-weight: 400;
-        color: var(--bb-text-muted) !important;
-        max-width: 36rem;
-        margin: 0.2rem auto 0 auto;
-        text-align: center !important;
-        display: block;
-        width: 100%;
-    }}
     .bb-pill-row {{
         display: flex; flex-wrap: wrap; justify-content: center; gap: 0.5rem; margin-top: 1.1rem;
     }}
@@ -861,7 +850,6 @@ st.markdown(
     """
 <div class="bb-hero">
     <div class="bb-hero-title">BrewBuddy</div>
-    <p class="bb-hero-sub">Context-aware picks · hybrid ML · adaptive policy</p>
     <div class="bb-pill-row">
         <span class="bb-pill">Classification</span>
         <span class="bb-pill">Content match</span>
