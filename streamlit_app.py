@@ -456,6 +456,21 @@ st.markdown(
         box-shadow: 0 4px 24px -4px rgba(180, 120, 80, 0.45) !important;
         transition: transform 0.15s ease, box-shadow 0.2s;
     }}
+    /* Main column: keep label readable on gold gradient (Streamlit nests label in <p>) */
+    [data-testid="stMainBlockContainer"] .stButton>button[kind="primary"] p,
+    [data-testid="stMainBlockContainer"] .stButton>button[kind="primary"] span {{
+        color: #120e0a !important;
+        font-weight: 700 !important;
+    }}
+    /* Main: expander + full-width controls share the same column width */
+    [data-testid="stMainBlockContainer"] [data-testid="stExpander"] {{
+        width: 100% !important;
+        max-width: 100% !important;
+    }}
+    [data-testid="stMainBlockContainer"] [data-testid="stExpander"] details {{
+        width: 100% !important;
+        box-sizing: border-box !important;
+    }}
     .stButton>button[kind="primary"]:hover {{
         box-shadow: 0 6px 32px -2px rgba(200, 140, 90, 0.55) !important;
     }}
@@ -851,20 +866,24 @@ with main:
     )
     st.markdown("")
 
-    with st.expander("Engineering: need vector & cosine scores", expanded=False):
-        st.caption("Four dimensions: stimulation, comfort, dairy concern, mildness. Compares to `coffee_items` in SQLite.")
-        st.json({"need": ag.last_need_vector, "cosine": ag.last_cosine_scores or {}})
+    _pad_l, c_intel_action, _pad_r = st.columns([1, 4, 1])
+    with c_intel_action:
+        with st.expander("Engineering: need vector & cosine scores", expanded=False):
+            st.caption(
+                "Four dimensions: stimulation, comfort, dairy concern, mildness. Compares to `coffee_items` in SQLite."
+            )
+            st.json({"need": ag.last_need_vector, "cosine": ag.last_cosine_scores or {}})
 
-    if st.button("Request recommendation", type="primary", use_container_width=True, key="btn_get"):
-        st.session_state.agent.add_context_request(
-            time_of_day=time_of_day if use_context else None,
-            weather=weather if use_context else None,
-            temperature=temperature if use_context else None,
-            subjective=subjective_payload if use_subjective else None,
-            user_profile=profile,
-        )
-        st.info("Queued. The worker will pick this up (respects cooldown & pending rating).")
-        st.rerun()
+        if st.button("Request recommendation", type="primary", use_container_width=True, key="btn_get"):
+            st.session_state.agent.add_context_request(
+                time_of_day=time_of_day if use_context else None,
+                weather=weather if use_context else None,
+                temperature=temperature if use_context else None,
+                subjective=subjective_payload if use_subjective else None,
+                user_profile=profile,
+            )
+            st.info("Queued. The worker will pick this up (respects cooldown & pending rating).")
+            st.rerun()
 
     current_pending = st.session_state.agent.pending_recommendation
     if current_pending != st.session_state.last_pending_recommendation:
