@@ -429,6 +429,19 @@ st.markdown(
     /* Select & inputs */
     [data-baseweb="select"] > div {{ background: var(--bb-surface2) !important; border-color: var(--bb-border) !important; border-radius: var(--bb-radius-sm) !important; }}
     [data-baseweb="select"] span {{ color: var(--bb-text) !important; }}
+    [data-testid="stSidebar"] [data-baseweb="select"] > div {{
+        background: linear-gradient(180deg, rgba(37, 34, 47, 0.98) 0%, rgba(29, 27, 38, 0.98) 100%) !important;
+        border-color: rgba(212, 166, 116, 0.36) !important;
+    }}
+    [data-testid="stSidebar"] [data-baseweb="select"] [data-testid="stMarkdownContainer"] p,
+    [data-testid="stSidebar"] [data-baseweb="select"] span,
+    [data-testid="stSidebar"] [data-baseweb="select"] div {{
+        color: #f5e9dc !important;
+        font-weight: 600 !important;
+    }}
+    [data-testid="stSidebar"] [data-baseweb="select"] svg {{
+        color: rgba(212, 166, 116, 0.95) !important;
+    }}
     /* Checkboxes */
     [data-baseweb="checkbox"] span {{ color: var(--bb-text) !important; font-size: 0.9rem; }}
     /* Primary button */
@@ -720,7 +733,7 @@ with st.sidebar:
         p_bitter = st.slider("Likes mild / low bitterness", 0.0, 1.0, st.session_state.user_profile.get("pref_low_bitterness", 0.5), 0.05)
         c_save, _ = st.columns([1, 0.1])
         with c_save:
-            if st.button("Save profile to SQLite", use_container_width=True, type="secondary"):
+            if st.button("Save profile to SQLite", use_container_width=True, type="primary"):
                 save_user_profile(p_strong, 1 if p_lf else 0, p_bitter)
                 st.session_state.user_profile = get_user_profile()
                 st.success("Profile saved")
