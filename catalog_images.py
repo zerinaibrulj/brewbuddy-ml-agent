@@ -1,11 +1,12 @@
 """
-Per-drink catalog imagery: one unique file per café menu item (stock photo or generated thumbnail).
+Per-drink catalog imagery: maps each café menu item to its file under images/.
 """
 
 from __future__ import annotations
 
 import hashlib
 import re
+from functools import lru_cache
 from pathlib import Path
 from typing import Optional
 
@@ -14,24 +15,101 @@ from PIL import Image, ImageDraw, ImageFont
 _ROOT = Path(__file__).resolve().parent
 IMAGES_DIR = _ROOT / "images"
 GENERATED_DIR = IMAGES_DIR / "generated"
+_IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png", ".webp", ".avif", ".gif"}
 
-# Stock photos used once each for the closest menu match; all other drinks get a unique generated PNG.
-_EXCLUSIVE_STOCK: dict[str, str] = {
+# Explicit map: café menu drink name (cafe_menu.csv) → filename in images/
+DRINK_IMAGE_MAP: dict[str, str] = {
     "Espresso": "espresso.jpg",
-    "Cappuccino": "cappuccino.jpg",
-    "Latte": "latte.webp",
+    "Doppio Espresso": "dopio esspreso.jpg",
+    "Ristretto": "ristretto.jpg",
     "Americano": "americano.jpg",
-    "Mocha": "mocha.png",
-    "Macchiato": "macchiato.jpg",
+    "Long Black": "long black.jpg",
+    "Latte": "latte.webp",
+    "Cappuccino": "cappuccino.jpg",
     "Flat White": "flat white.jpg",
+    "Macchiato": "macchiato.jpg",
     "Cortado": "cortado.webp",
+    "Mocha": "mocha.png",
+    "White Chocolate Mocha": "white chocolate mocha.jpg",
+    "Hot Chocolate": "hot chocolate.jpg",
+    "Affogato": "Affogato.jpg",
     "Cold Brew": "cold brew.jpg",
     "Iced Coffee": "iced coffee.jpg",
+    "Iced Latte": "iced latte.jpg",
+    "Iced Americano": "iced americano.jpg",
+    "Iced Mocha": "iced mocha.jpg",
     "Frappuccino": "frappuccino.jpg",
-    "Affogato": "i.pinimgproxy.png",
-    "Hot Chocolate": "caffee1.png",
-    "Decaf Latte": "decaf.webp",
+    "Caramel Macchiato": "Caramel Machiatto.jpg",
+    "Vanilla Latte": "vanilla latte.jpg",
+    "Hazelnut Latte": "hazelnut latte.jpg",
+    "Caffè Misto": "Caffee misto.webp",
+    "Pour-Over Coffee": "pour over coffee.jpg",
+    "French Press": "french press.jpg",
+    "Turkish Coffee": "turkish coffee.jpg",
+    "Vietnamese Iced Coffee (Cà Phê Sữa Đá)": "vietnamase iced coffee.jpg",
+    "Irish Coffee": "irish coffee.jpg",
+    "Decaf Latte": "decaf latte.avif",
+    "Decaf Americano": "Decaf americano.jpg",
+    "Decaf Cappuccino": "Decaf cappuccino.avif",
+    "Oat Milk Latte": "oat milk latte.jpg",
+    "Almond Milk Cappuccino": "Almond Milk Cappuccino.jpg",
+    "Honey Cinnamon Latte": "honey cinnamon latte.jpg",
+    # Legacy seed-only label
+    "Decaf": "Decaf.webp",
 }
+
+# Alternate spellings / imports
+_DRINK_ALIASES: dict[str, str] = {
+    "caffe misto": "Caffè Misto",
+    "cafe misto": "Caffè Misto",
+    "pour over coffee": "Pour-Over Coffee",
+    "vietnamese iced coffee": "Vietnamese Iced Coffee (Cà Phê Sữa Đá)",
+    "doppio espresso": "Doppio Espresso",
+    "caramel macchiato": "Caramel Macchiato",
+}
+
+
+def _normalize_key(text: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "", text.lower())
+
+
+@lru_cache(maxsize=1)
+def _file_index() -> dict[str, str]:
+    """Normalized stem → actual filename (case-insensitive discovery)."""
+    index: dict[str, str] = {}
+    if not IMAGES_DIR.exists():
+        return index
+    for path in IMAGES_DIR.iterdir():
+        if path.is_file() and path.suffix.lower() in _IMAGE_SUFFIXES:
+            index[_normalize_key(path.stem)] = path.name
+    return index
+
+
+def _resolve_filename(coffee_name: str) -> Optional[str]:
+    name = coffee_name.strip()
+    if not name:
+        return None
+
+    alias_key = _normalize_key(name)
+    if alias_key in _DRINK_ALIASES:
+        name = _DRINK_ALIASES[alias_key]
+
+    if name in DRINK_IMAGE_MAP:
+        mapped = DRINK_IMAGE_MAP[name]
+        if mapped and (IMAGES_DIR / mapped).exists():
+            return mapped
+
+    idx = _file_index()
+    hit = idx.get(_normalize_key(name))
+    if hit:
+        return hit
+
+    return None
+
+
+def _stock_path(filename: str) -> Optional[str]:
+    p = IMAGES_DIR / filename
+    return str(p.resolve()) if p.exists() else None
 
 
 def _slug(name: str) -> str:
@@ -48,6 +126,7 @@ def _palette(name: str) -> tuple[int, int, int, int, int, int]:
 
 
 def _write_generated_thumbnail(name: str, dest: Path) -> None:
+    """Fallback only when no matching file exists in images/."""
     dest.parent.mkdir(parents=True, exist_ok=True)
     w, h = 480, 360
     r1, g1, b1, r2, g2, b2 = _palette(name)
@@ -74,20 +153,26 @@ def _write_generated_thumbnail(name: str, dest: Path) -> None:
     img.save(dest, format="PNG", optimize=True)
 
 
-def _stock_path(filename: str) -> Optional[str]:
-    p = IMAGES_DIR / filename
-    return str(p) if p.exists() else None
-
-
 def get_catalog_image_path(coffee_name: str) -> Optional[str]:
-    """Return a unique image path for this drink."""
-    if coffee_name in _EXCLUSIVE_STOCK:
-        stock = _stock_path(_EXCLUSIVE_STOCK[coffee_name])
-        if stock:
-            return stock
+    """Return the image path for a drink (user assets first, generated thumbnail last)."""
+    filename = _resolve_filename(coffee_name)
+    if filename:
+        return _stock_path(filename)
 
     gen = GENERATED_DIR / f"{_slug(coffee_name)}.png"
     if gen.exists():
-        return str(gen)
+        return str(gen.resolve())
     _write_generated_thumbnail(coffee_name, gen)
-    return str(gen)
+    return str(gen.resolve())
+
+
+def list_mapped_menu_images() -> dict[str, str]:
+    """Debug/helper: drink name → resolved filesystem path."""
+    from brewbuddy_data.database import get_cafe_menu_meta
+
+    out: dict[str, str] = {}
+    for name in get_cafe_menu_meta().keys():
+        path = get_catalog_image_path(name)
+        if path:
+            out[name] = path
+    return out
