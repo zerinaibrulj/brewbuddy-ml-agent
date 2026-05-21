@@ -127,6 +127,41 @@ def init_db(db_path: Optional[Path] = None) -> None:
         c.commit()
 
 
+def get_cafe_menu_path() -> Path:
+    return Path(__file__).resolve().parent / "datasets" / "cafe_menu.csv"
+
+
+def get_catalog_table(db_path: Optional[Path] = None) -> pd.DataFrame:
+    """All coffees for UI catalog (sorted: seed/menu first, then name)."""
+    init_db(db_path)
+    with _connect(db_path or get_default_db_path()) as c:
+        rows = c.execute(
+            """
+            SELECT name, caffeine_level, dairy_load, bitterness, state_category, source_ref
+            FROM coffee_items
+            ORDER BY
+                CASE source_ref
+                    WHEN 'seed' THEN 0
+                    WHEN 'cafe_menu' THEN 1
+                    ELSE 2
+                END,
+                name
+            """
+        ).fetchall()
+    return pd.DataFrame(
+        [
+            {
+                "Drink": r["name"],
+                "Category": str(r["state_category"]).replace("_", " "),
+                "Caffeine": round(float(r["caffeine_level"]), 2),
+                "Dairy": round(float(r["dairy_load"]), 2),
+                "Source": r["source_ref"] or "seed",
+            }
+            for r in rows
+        ]
+    )
+
+
 def get_coffee_list(db_path: Optional[Path] = None) -> List[str]:
     init_db(db_path)
     with _connect(db_path or get_default_db_path()) as c:
@@ -337,14 +372,14 @@ def _infer_features_from_row(row: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def _normalize_dataset(df: pd.DataFrame) -> pd.DataFrame:
+def _normalize_dataset(df: pd.DataFrame, source_ref: str = "dataset") -> pd.DataFrame:
     rows: List[Dict[str, Any]] = []
     for _, rec in df.iterrows():
         row = {k: rec.get(k) for k in df.columns}
         if not str(row.get("name", "")).strip():
             continue
         feats = _infer_features_from_row(row)
-        feats["source_ref"] = "dataset"
+        feats["source_ref"] = str(row.get("source_ref") or source_ref)
         feats["extra_json"] = json.dumps(
             {
                 "roaster": row.get("roaster"),
@@ -360,17 +395,46 @@ def _normalize_dataset(df: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(rows).drop_duplicates(subset=["name"], keep="first")
 
 
+def import_cafe_menu(db_path: Optional[Path] = None) -> Dict[str, int]:
+    """Import recognizable café drinks (recommended default catalog extension)."""
+    path = get_cafe_menu_path()
+    if not path.exists():
+        return {"seen": 0, "inserted": 0, "updated": 0}
+    return import_dataset_rows(
+        dataset_paths=[path],
+        db_path=db_path,
+        limit_per_dataset=500,
+        default_source_ref="cafe_menu",
+    )
+
+
+def reset_catalog_to_cafe_menu(db_path: Optional[Path] = None) -> Dict[str, int]:
+    """
+    Remove obscure specialty imports; keep built-in seed drinks and reload café menu CSV.
+    Use after importing Coffee Review datasets that add unfamiliar bean names.
+    """
+    path = db_path or get_default_db_path()
+    init_db(path)
+    with _connect(path) as c:
+        c.execute("DELETE FROM coffee_items WHERE source_ref NOT IN ('seed', 'cafe_menu')")
+        c.commit()
+    menu = import_cafe_menu(path)
+    return {"removed_obscure": True, **menu}
+
+
 def import_dataset_rows(
     dataset_paths: Optional[List[Path]] = None,
     db_path: Optional[Path] = None,
     limit_per_dataset: int = 300,
+    default_source_ref: str = "dataset",
 ) -> Dict[str, int]:
     """
     Import new rows from CSV datasets into coffee_items.
     Upserts by name and keeps deterministic limit to keep UI manageable.
+    Default path is the curated café menu only (recognizable drink names).
     """
     base = Path(__file__).resolve().parent / "datasets"
-    paths = dataset_paths or [base / "simplified_coffee.csv", base / "coffee_analysis.csv"]
+    paths = dataset_paths or [base / "cafe_menu.csv"]
     inserted = 0
     updated = 0
     seen = 0
@@ -387,7 +451,8 @@ def import_dataset_rows(
                     df = df.sort_values("rating", ascending=False).head(limit_per_dataset)
                 else:
                     df = df.head(limit_per_dataset)
-            norm = _normalize_dataset(df)
+            src = "cafe_menu" if p.name == "cafe_menu.csv" else default_source_ref
+            norm = _normalize_dataset(df, source_ref=src)
             for _, r in norm.iterrows():
                 seen += 1
                 exists = c.execute("SELECT id FROM coffee_items WHERE name = ?", (r["name"],)).fetchone()

@@ -1,0 +1,36 @@
+name,roast,rating,desc_1,desc_2,desc_3
+Espresso,Medium-Dark,92,A classic espresso shot — bold and concentrated.,House staple,Recognizable café drink
+Doppio Espresso,Medium-Dark,91,Double espresso for a stronger morning pick-me-up.,Two shots of espresso,Classic menu
+Ristretto,Medium-Dark,90,Short concentrated espresso pull — intense flavor.,Espresso style,Menu favorite
+Americano,Medium,88,Hot water over espresso — smooth and drinkable.,Espresso-based,Everyday order
+Long Black,Medium,88,Espresso poured over hot water — similar to americano.,Espresso-based,Popular in cafés
+Latte,Medium,89,Steamed milk over espresso — creamy and mild.,Milk-forward latte,Crowd pleaser
+Cappuccino,Medium,90,Equal parts espresso steamed milk and foam.,Cappuccino with foam,Classic Italian café
+Flat White,Medium,91,Ristretto with velvety microfoam — compact and strong.,Flat white milk coffee,Modern café standard
+Macchiato,Medium,89,Espresso marked with a dollop of foamed milk.,Espresso macchiato,Small milk touch
+Cortado,Medium,90,Espresso cut with warm steamed milk — balanced.,Cortado ratio,Spanish café classic
+Mocha,Medium,87,Espresso with chocolate and steamed milk — sweet.,Mocha chocolate coffee,Indulgent choice
+White Chocolate Mocha,Medium,86,Espresso white chocolate and steamed milk.,Mocha variant,Sweet menu item
+Hot Chocolate,Light,85,Steamed milk and cocoa — no espresso.,Comfort drink,Non-coffee option
+Affogato,Medium,88,Vanilla gelato drowned in a shot of hot espresso.,Espresso dessert,Italian treat
+Cold Brew,Medium-Light,90,Slow-steeped chilled coffee — smooth low acidity.,Cold brew concentrate,Summer favorite
+Iced Coffee,Medium,87,Chilled brewed coffee served over ice.,Iced coffee,Refreshment
+Iced Latte,Medium,88,Espresso and cold milk over ice.,Iced latte,Milk-forward cold drink
+Iced Americano,Medium,87,Espresso and cold water over ice.,Iced americano,Light iced option
+Iced Mocha,Medium,86,Espresso chocolate and milk over ice.,Iced mocha,Sweet iced drink
+Frappuccino,Light,84,Blended iced coffee drink — sweet and creamy.,Blended frappuccino style,Treat drink
+Caramel Macchiato,Medium,86,Vanilla milk marked with espresso and caramel.,Layered macchiato,Chain-menu classic
+Vanilla Latte,Medium,87,Latte with vanilla syrup — smooth and sweet.,Flavored latte,Popular add-on
+Hazelnut Latte,Medium,86,Latte with hazelnut flavor — nutty and mild.,Flavored latte,Seasonal favorite
+Caffè Misto,Medium,85,Brewed coffee with steamed milk — gentle.,Coffee with milk,Light option
+Pour-Over Coffee,Medium-Light,89,Hand-poured filter coffee — clean cup.,Filter coffee,Third-wave staple
+French Press,Medium,88,Full-bodied immersion brew — rich mouthfeel.,Press pot coffee,Home and café brew
+Turkish Coffee,Medium-Dark,87,Finely ground coffee boiled in a cezve — strong.,Traditional brew,Recognizable style
+Vietnamese Iced Coffee (Cà Phê Sữa Đá),Medium-Dark,88,Strong coffee with sweet condensed milk over ice.,Iced coffee with milk,Well-known global drink
+Irish Coffee,Medium,86,Hot coffee with whiskey cream and sugar — evening drink.,Coffee cocktail,Classic recipe
+Decaf Latte,Medium,84,Decaf espresso with steamed milk — low caffeine.,Decaf latte,Evening-friendly
+Decaf Americano,Medium,83,Decaf espresso with hot water.,Decaf americano,Low caffeine
+Decaf Cappuccino,Medium,84,Decaf espresso with foam and steamed milk.,Decaf cappuccino,Evening option
+Oat Milk Latte,Medium,88,Latte made with oat milk — creamy plant-based.,Oat milk latte,Modern dairy alternative
+Almond Milk Cappuccino,Medium,87,Cappuccino with almond milk — light and nutty.,Almond milk cappuccino,Plant-based café choice
+Honey Cinnamon Latte,Medium,86,Latte with honey and cinnamon — warm spice.,Flavored latte,Seasonal comfort

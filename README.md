@@ -43,10 +43,10 @@ Database: `data/brewbuddy.db`
 - `interaction_log` (full learning history)
 
 ### 4) Dataset Integration
-- Built-in import pipeline for:
-  - `brewbuddy_data/datasets/simplified_coffee.csv`
-  - `brewbuddy_data/datasets/coffee_analysis.csv`
-- New rows are normalized and upserted into `coffee_items`.
+- **Default (recommended):** `brewbuddy_data/datasets/cafe_menu.csv` — familiar café drink names (latte, cappuccino, cold brew, etc.).
+- **Optional (advanced):** Coffee Review specialty CSVs (`simplified_coffee.csv`, `coffee_analysis.csv`) — thousands of single-origin beans; useful for scale demos but poor UX for end users.
+- UI: **Menu catalog** sidebar (searchable list) + **Reload café menu** resets obscure imports.
+- Rows are normalized into feature vectors and upserted into `coffee_items`.
 
 ### 5) Explainability
 - Every recommendation can show a **narrative explanation**:
@@ -69,6 +69,7 @@ Database: `data/brewbuddy.db`
 
 ### 7) Modern UI / UX
 - Premium dark interface (gold/coffee accents)
+- **Sidebar:** Control room, searchable **menu catalog**, ML engineering panel (need vector + cosine scores)
 - Card-based recommendation display + alternatives
 - Analytics tabs for:
   - Q-Table
@@ -120,12 +121,12 @@ Open: `http://localhost:8501`
 
 ## Recommended Demo Flow
 
-1. Launch app and open sidebar “Control room”.
-2. Set context + subjective state.
-3. Request recommendation and inspect explainability narrative.
-4. Rate recommendation.
-5. Open **Validation** tab to view evaluation + ablations.
-6. Use **Competition data boost** to import dataset rows and expand catalog.
+1. Launch app and open sidebar **Control room** — browse the **Menu catalog**.
+2. Set context + subjective state in the sidebar expanders.
+3. Click **Request recommendation** (under Live context) and inspect the explainability narrative.
+4. Rate the drink; optional: open **Engineering** in the sidebar for need vector / cosine scores.
+5. Open **Validation** for evaluation + ablations.
+6. Use **Reload café menu** if the catalog shows unfamiliar specialty bean names.
 
 ---
 

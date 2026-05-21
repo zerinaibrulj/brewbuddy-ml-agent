@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import html
 import os
+from pathlib import Path
 import random
 from ast import literal_eval
 from typing import Optional
@@ -21,9 +22,12 @@ from sklearn.linear_model import Ridge
 from background_worker import BackgroundWorker
 from brewbuddy_agent import BrewBuddyAgent, NoWork
 from brewbuddy_data.database import (
+    get_catalog_table,
     get_user_profile,
+    import_cafe_menu,
     import_dataset_rows,
     init_db,
+    reset_catalog_to_cafe_menu,
     save_user_profile,
 )
 
@@ -726,6 +730,19 @@ if "worker_status" not in st.session_state:
 if "last_pending_recommendation" not in st.session_state:
     st.session_state.last_pending_recommendation = None
 
+if "catalog_ready" not in st.session_state:
+    catalog_df = get_catalog_table()
+    obscure = len(catalog_df) > 40 or (
+        not catalog_df.empty and (catalog_df["Source"] == "dataset").sum() > 5
+    )
+    if obscure or len(catalog_df) < 20:
+        reset_catalog_to_cafe_menu()
+    else:
+        import_cafe_menu()
+    if "agent" in st.session_state:
+        st.session_state.agent.reload_catalog_from_db()
+    st.session_state.catalog_ready = True
+
 COFFEE_DESCRIPTIONS = {
     "Espresso": "Intense, concentrated, and unapologetically bold.",
     "Cappuccino": "Equal parts espresso, steamed milk, and airy foam.",
@@ -871,6 +888,28 @@ with st.sidebar:
     st.markdown('<p class="bb-sidebar-kicker">Brewbuddy</p>', unsafe_allow_html=True)
     st.markdown('<p class="bb-sidebar-title">Control room</p>', unsafe_allow_html=True)
 
+    with st.expander("Menu catalog", expanded=True):
+        st.caption("Drinks currently on offer — search and scroll the full menu.")
+        catalog_search = st.text_input("Search menu", "", key="bb_catalog_search", label_visibility="collapsed", placeholder="Search drinks…")
+        catalog_df = get_catalog_table()
+        if catalog_search.strip():
+            mask = catalog_df["Drink"].str.contains(catalog_search.strip(), case=False, na=False)
+            catalog_df = catalog_df[mask]
+        st.caption(f"**{len(catalog_df)}** drinks shown · **{len(st.session_state.agent.coffees)}** in active policy")
+        st.dataframe(
+            catalog_df,
+            use_container_width=True,
+            height=min(420, 38 + len(catalog_df) * 35),
+            hide_index=True,
+            column_config={
+                "Drink": st.column_config.TextColumn("Drink", width="medium"),
+                "Category": st.column_config.TextColumn("Category", width="small"),
+                "Caffeine": st.column_config.NumberColumn("Caffeine", format="%.2f", width="small"),
+                "Dairy": st.column_config.NumberColumn("Dairy", format="%.2f", width="small"),
+                "Source": st.column_config.TextColumn("Source", width="small"),
+            },
+        )
+
     with st.expander("Learning engine", expanded=True):
         strategy = st.selectbox(
             "Policy",
@@ -956,17 +995,59 @@ with st.sidebar:
         use_hybrid = st.toggle("Classify state → cosine shortlist → policy", value=True, help="Matches `state_category` in the database.")
         st.session_state.agent.use_hybrid = use_hybrid
 
-    with st.expander("Competition data boost", expanded=False):
-        st.caption("Import curated rows from the new datasets into SQLite and refresh the active catalog.")
-        rows_per = st.slider("Rows per dataset", 100, 1200, 350, 50)
-        if st.button("Import datasets into catalog", use_container_width=True, type="primary"):
-            result = import_dataset_rows(limit_per_dataset=rows_per)
+    with st.expander("Catalog & datasets", expanded=False):
+        st.caption(
+            "Default menu uses **cafe_menu.csv** (familiar drink names). "
+            "Specialty bean datasets add obscure origins — use only if you need a large catalog for demos."
+        )
+        if st.button("Reload café menu (recommended)", use_container_width=True, type="primary"):
+            reset_catalog_to_cafe_menu()
             st.session_state.agent.reload_catalog_from_db()
-            st.success(
-                f"Imported successfully: +{result['inserted']} new, {result['updated']} updated "
-                f"(processed {result['seen']} rows)."
-            )
-        st.caption(f"Current catalog size: **{len(st.session_state.agent.coffees)}** drinks")
+            st.session_state.catalog_ready = True
+            st.success(f"Menu refreshed — **{len(st.session_state.agent.coffees)}** drinks active.")
+            st.rerun()
+        with st.expander("Advanced: specialty bean datasets", expanded=False):
+            rows_per = st.slider("Rows per file (max)", 50, 800, 150, 50)
+            if st.button("Import Coffee Review CSVs", use_container_width=True, type="secondary"):
+                base = Path(__file__).resolve().parent / "brewbuddy_data" / "datasets"
+                result = import_dataset_rows(
+                    dataset_paths=[base / "simplified_coffee.csv", base / "coffee_analysis.csv"],
+                    limit_per_dataset=rows_per,
+                )
+                st.session_state.agent.reload_catalog_from_db()
+                st.warning(
+                    f"Added specialty rows: +{result['inserted']} new, {result['updated']} updated. "
+                    "Names may be unfamiliar — use **Reload café menu** to reset."
+                )
+                st.rerun()
+        st.caption(f"Active policy catalog: **{len(st.session_state.agent.coffees)}** drinks")
+
+    subjective_payload = {
+        "sleep_hours": float(sleep_h) if use_subjective else 7.0,
+        "fatigue": int(fatigue) if use_subjective else 5,
+        "lactose_intolerance": bool(lactose) if use_subjective else False,
+        "social_battery": str(social) if use_subjective else "Full",
+    }
+    profile = st.session_state.user_profile
+    st.session_state.agent.sense(
+        time_of_day=time_of_day if use_context else None,
+        weather=weather if use_context else None,
+        temperature=temperature if use_context else None,
+        subjective=subjective_payload if use_subjective else None,
+        user_profile=profile,
+    )
+
+    with st.expander("Engineering: need vector & cosine scores", expanded=False):
+        st.caption(
+            "ML internals: four need dimensions (stimulation, comfort, dairy concern, mildness) "
+            "and cosine similarity vs catalog vectors in SQLite."
+        )
+        st.json(
+            {
+                "need": st.session_state.agent.last_need_vector,
+                "cosine": st.session_state.agent.last_cosine_scores or {},
+            }
+        )
 
     st.divider()
     _, b1, b2, _ = st.columns([0.12, 1, 1, 0.12])
@@ -1010,22 +1091,14 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# —— Sense once per run (sidebar controls + hybrid view stay in sync) ——
+ag = st.session_state.agent
+profile = st.session_state.user_profile
 subjective_payload = {
     "sleep_hours": float(sleep_h) if use_subjective else 7.0,
     "fatigue": int(fatigue) if use_subjective else 5,
     "lactose_intolerance": bool(lactose) if use_subjective else False,
     "social_battery": str(social) if use_subjective else "Full",
 }
-profile = st.session_state.user_profile
-st.session_state.agent.sense(
-    time_of_day=time_of_day if use_context else None,
-    weather=weather if use_context else None,
-    temperature=temperature if use_context else None,
-    subjective=subjective_payload if use_subjective else None,
-    user_profile=profile,
-)
-ag = st.session_state.agent
 
 # —— Body ——
 main, aside = st.columns([1.55, 0.9])
@@ -1063,6 +1136,18 @@ with main:
         """,
         unsafe_allow_html=True,
     )
+
+    if st.button("Request recommendation", type="primary", use_container_width=True, key="btn_get"):
+        st.session_state.agent.add_context_request(
+            time_of_day=time_of_day if use_context else None,
+            weather=weather if use_context else None,
+            temperature=temperature if use_context else None,
+            subjective=subjective_payload if use_subjective else None,
+            user_profile=profile,
+        )
+        st.info("Queued. The worker will pick this up (respects cooldown & pending rating).")
+        st.rerun()
+
     st.markdown("")
 
     current_pending = st.session_state.agent.pending_recommendation
@@ -1208,28 +1293,6 @@ with aside:
             unsafe_allow_html=True,
         )
     st.markdown("")
-
-# —— Full-width CTA (centered; same width for expander + primary action) ——
-st.markdown('<div class="bb-section-rule bb-section-rule--compact" aria-hidden="true"></div>', unsafe_allow_html=True)
-with st.container(border=True):
-    _cta_l, c_intel_action, _cta_r = st.columns([1, 2.4, 1])
-    with c_intel_action:
-        with st.expander("Engineering: need vector & cosine scores", expanded=False):
-            st.caption(
-                "Four dimensions: stimulation, comfort, dairy concern, mildness. Compares to `coffee_items` in SQLite."
-            )
-            st.json({"need": ag.last_need_vector, "cosine": ag.last_cosine_scores or {}})
-
-        if st.button("Request recommendation", type="primary", use_container_width=True, key="btn_get"):
-            st.session_state.agent.add_context_request(
-                time_of_day=time_of_day if use_context else None,
-                weather=weather if use_context else None,
-                temperature=temperature if use_context else None,
-                subjective=subjective_payload if use_subjective else None,
-                user_profile=profile,
-            )
-            st.info("Queued. The worker will pick this up (respects cooldown & pending rating).")
-            st.rerun()
 
 # —— Analytics ——
 st.markdown('<div class="bb-section-rule" aria-hidden="true"></div>', unsafe_allow_html=True)
