@@ -69,7 +69,8 @@ Database: `data/brewbuddy.db`
 
 ### 7) Modern UI / UX
 - Premium dark interface (gold/coffee accents)
-- **Sidebar:** Control room, searchable **menu catalog**, ML engineering panel (need vector + cosine scores)
+- **Main dashboard:** **Browse the full menu catalog** opens a card grid (unique image per drink, ML snapshot on select)
+- **Sidebar:** Control room + ML engineering panel (need vector + cosine scores)
 - Card-based recommendation display + alternatives
 - Analytics tabs for:
   - Q-Table

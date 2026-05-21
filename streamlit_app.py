@@ -31,6 +31,7 @@ from brewbuddy_data.database import (
     reset_catalog_to_cafe_menu,
     save_user_profile,
 )
+from catalog_images import get_catalog_image_path
 from hybrid_ml import coffee_to_vector
 
 # —— Theme: premium dark, warm gold / espresso accents ——
@@ -696,27 +697,51 @@ st.markdown(
         border-radius: 14px !important;
         box-shadow: 0 12px 40px -12px rgba(0,0,0,0.6), 0 0 0 1px rgba(212,166,116,0.15) !important;
     }}
-    /* Sidebar catalog cards */
-    [data-testid="stSidebar"] [data-testid="stVerticalBlockBorderWrapper"] {{
-        margin-bottom: 0.35rem !important;
+    /* Main dashboard — menu catalog CTA */
+    .bb-menu-cta-band {{
+        text-align: center;
+        margin: 0 auto 1.5rem auto;
+        max-width: 640px;
+        padding: 0.25rem 0 0.5rem 0;
     }}
-    [data-testid="stSidebar"] .bb-catalog-card-title {{
+    .bb-menu-cta-sub {{
+        font-size: 0.88rem;
+        color: var(--bb-text-muted) !important;
+        margin: 0.5rem 0 0 0;
+        text-align: center;
+    }}
+    .bb-catalog-panel {{
+        background: linear-gradient(165deg, rgba(18, 16, 24, 0.92) 0%, rgba(10, 10, 14, 0.88) 100%);
+        border: 1px solid rgba(212, 166, 116, 0.22);
+        border-radius: var(--bb-radius);
+        padding: 1.35rem 1.5rem 1.5rem 1.5rem;
+        margin: 0 0 2rem 0;
+        box-shadow: 0 0 0 1px rgba(212, 166, 116, 0.06), 0 28px 56px -32px rgba(0,0,0,0.75);
+    }}
+    .bb-catalog-card-title {{
         font-family: 'Outfit', sans-serif;
-        font-size: 0.82rem;
+        font-size: 0.95rem;
         font-weight: 600;
         color: #f0e8e0 !important;
-        margin: 0.35rem 0 0.15rem 0;
-        line-height: 1.25;
+        margin: 0.45rem 0 0.2rem 0;
+        line-height: 1.3;
     }}
-    [data-testid="stSidebar"] .bb-catalog-card-desc {{
-        font-size: 0.7rem;
+    .bb-catalog-card-desc {{
+        font-size: 0.78rem;
         color: #9a9590 !important;
-        line-height: 1.4;
-        margin: 0 0 0.35rem 0;
-        min-height: 2.6em;
+        line-height: 1.45;
+        margin: 0 0 0.5rem 0;
+        min-height: 2.8em;
     }}
-    [data-testid="stSidebar"] [data-testid="stImage"] img {{
-        border-radius: 10px !important;
+    [data-testid="stMainBlockContainer"] .bb-catalog-panel [data-testid="stVerticalBlockBorderWrapper"] {{
+        margin-bottom: 0.65rem !important;
+        transition: box-shadow 0.2s ease, border-color 0.2s ease;
+    }}
+    [data-testid="stMainBlockContainer"] .bb-catalog-panel [data-testid="stVerticalBlockBorderWrapper"]:hover {{
+        box-shadow: 0 12px 32px -16px rgba(212, 166, 116, 0.35) !important;
+    }}
+    [data-testid="stMainBlockContainer"] .bb-catalog-panel [data-testid="stImage"] img {{
+        border-radius: 12px !important;
         aspect-ratio: 4/3;
         object-fit: cover;
     }}
@@ -757,6 +782,8 @@ if "last_pending_recommendation" not in st.session_state:
     st.session_state.last_pending_recommendation = None
 if "bb_selected_catalog_drink" not in st.session_state:
     st.session_state.bb_selected_catalog_drink = None
+if "bb_show_catalog" not in st.session_state:
+    st.session_state.bb_show_catalog = False
 
 NEED_VECTOR_LABELS = ("stimulation", "comfort", "dairy concern", "mildness")
 COFFEE_VECTOR_LABELS = ("stimulation", "comfort", "dairy load", "mildness")
@@ -898,14 +925,14 @@ def _menu_catalog_drinks(agent: BrewBuddyAgent) -> list[str]:
     return names if names else sorted(agent.coffees)
 
 
-def _catalog_placeholder_image(coffee_name: str) -> Optional[str]:
-    path = get_coffee_image_path(coffee_name)
-    if path and os.path.exists(path):
-        return path
-    for fp in ("images/coffee1.png", "images/espresso.jpg", "images/latte.webp"):
-        if os.path.exists(fp):
-            return fp
-    return None
+def _catalog_image(coffee_name: str) -> Optional[str]:
+    path = get_catalog_image_path(coffee_name)
+    return path if path and os.path.exists(path) else None
+
+
+def _warm_catalog_images(drinks: list[str]) -> None:
+    for name in drinks:
+        get_catalog_image_path(name)
 
 
 def _catalog_drink_description(name: str, menu_meta: dict) -> str:
@@ -936,12 +963,12 @@ def _drink_ml_snapshot(agent: BrewBuddyAgent, drink_name: str) -> dict:
     }
 
 
-def _render_sidebar_catalog_grid(
+def _render_catalog_grid(
     agent: BrewBuddyAgent,
     menu_meta: dict,
     search: str,
     *,
-    cols_per_row: int = 2,
+    cols_per_row: int = 3,
 ) -> None:
     drinks = _menu_catalog_drinks(agent)
     if search.strip():
@@ -963,12 +990,12 @@ def _render_sidebar_catalog_grid(
             name = drinks[idx]
             with col:
                 with st.container(border=True):
-                    img_path = _catalog_placeholder_image(name)
+                    img_path = _catalog_image(name)
                     if img_path:
                         st.image(Image.open(img_path), use_container_width=True)
                     desc = _catalog_drink_description(name, menu_meta)
-                    if len(desc) > 110:
-                        desc = desc[:107].rstrip() + "…"
+                    if len(desc) > 140:
+                        desc = desc[:137].rstrip() + "…"
                     st.markdown(f'<p class="bb-catalog-card-title">{html.escape(name)}</p>', unsafe_allow_html=True)
                     st.markdown(f'<p class="bb-catalog-card-desc">{html.escape(desc)}</p>', unsafe_allow_html=True)
                     cos = cos_map.get(name)
@@ -989,10 +1016,10 @@ def _render_sidebar_catalog_grid(
 
 def _render_catalog_drink_detail(agent: BrewBuddyAgent, drink_name: str, menu_meta: dict) -> None:
     snap = _drink_ml_snapshot(agent, drink_name)
-    img_path = _catalog_placeholder_image(drink_name)
+    img_path = _catalog_image(drink_name)
     with st.container(border=True):
         st.markdown('<p class="bb-section-label" style="margin-top:0;">Selected drink · ML snapshot</p>', unsafe_allow_html=True)
-        head_l, head_r = st.columns([1, 1.2])
+        head_l, head_r = st.columns([0.85, 1.15])
         with head_l:
             if img_path:
                 st.image(Image.open(img_path), use_container_width=True)
@@ -1019,42 +1046,14 @@ def _render_catalog_drink_detail(agent: BrewBuddyAgent, drink_name: str, menu_me
 
 
 def get_coffee_image_path(coffee_name: str):
-    normalized = coffee_name.lower()
-    image_mapping = {
-        "espresso": "espresso.jpg",
-        "cappuccino": "cappuccino.jpg",
-        "latte": "latte.webp",
-        "americano": "americano.jpg",
-        "mocha": "mocha.png",
-        "macchiato": "macchiato.jpg",
-        "flat white": "flat white.jpg",
-        "cortado": "cortado.webp",
-        "cold brew": "cold brew.jpg",
-        "iced coffee": "iced coffee.jpg",
-        "frappuccino": "frappuccino.jpg",
-        "decaf": "decaf.webp",
-    }
-    image_file = image_mapping.get(normalized)
-    if image_file and os.path.exists(f"images/{image_file}"):
-        return f"images/{image_file}"
-    # Fallback for imported dataset coffees (no exact local asset yet)
-    fallback_candidates = [
-        "images/coffee1.png",
-        "images/espresso.jpg",
-        "images/americano.jpg",
-    ]
-    for fp in fallback_candidates:
-        if os.path.exists(fp):
-            return fp
-    return None
+    """Hero / recommendation image — unique per drink via catalog resolver."""
+    return _catalog_image(coffee_name)
 
 
 # —— Sidebar (grouped) ——
 with st.sidebar:
     st.markdown('<p class="bb-sidebar-kicker">Brewbuddy</p>', unsafe_allow_html=True)
     st.markdown('<p class="bb-sidebar-title">Control room</p>', unsafe_allow_html=True)
-
-    _menu_meta = _cached_cafe_menu_meta()
 
     with st.expander("Learning engine", expanded=True):
         strategy = st.selectbox(
@@ -1183,31 +1182,6 @@ with st.sidebar:
         user_profile=profile,
     )
 
-    with st.expander("Menu catalog", expanded=True):
-        st.caption("Tap a drink for its vectors and cosine match vs your current need.")
-        catalog_search = st.text_input(
-            "Search menu",
-            "",
-            key="bb_catalog_search",
-            label_visibility="collapsed",
-            placeholder="Search drinks…",
-        )
-        menu_drinks = _menu_catalog_drinks(st.session_state.agent)
-        shown = len(menu_drinks)
-        if catalog_search.strip():
-            q = catalog_search.strip().lower()
-            shown = sum(
-                1
-                for d in menu_drinks
-                if q in d.lower() or q in _catalog_drink_description(d, _menu_meta).lower()
-            )
-        st.caption(f"**{shown}** on menu · **{len(st.session_state.agent.coffees)}** in policy")
-        _render_sidebar_catalog_grid(st.session_state.agent, _menu_meta, catalog_search)
-
-    _sel = st.session_state.bb_selected_catalog_drink
-    if _sel and _sel in st.session_state.agent.coffee_items:
-        _render_catalog_drink_detail(st.session_state.agent, _sel, _menu_meta)
-
     with st.expander("Engineering: need vector & cosine scores", expanded=False):
         st.caption(
             "ML internals: four need dimensions (stimulation, comfort, dairy concern, mildness) "
@@ -1270,6 +1244,57 @@ subjective_payload = {
     "lactose_intolerance": bool(lactose) if use_subjective else False,
     "social_battery": str(social) if use_subjective else "Full",
 }
+_menu_meta = _cached_cafe_menu_meta()
+
+# —— Menu catalog CTA (main dashboard) ——
+st.markdown('<div class="bb-menu-cta-band">', unsafe_allow_html=True)
+_cta_l, _cta_c, _cta_r = st.columns([1, 1.35, 1])
+with _cta_c:
+    _open = st.session_state.bb_show_catalog
+    if st.button(
+        "Hide menu catalog" if _open else "Browse the full menu catalog",
+        type="primary",
+        use_container_width=True,
+        key="bb_toggle_catalog",
+    ):
+        st.session_state.bb_show_catalog = not _open
+        st.rerun()
+st.markdown(
+    '<p class="bb-menu-cta-sub">Explore every drink on offer — tap a card to see ML vectors and your match score.</p></div>',
+    unsafe_allow_html=True,
+)
+
+if st.session_state.bb_show_catalog:
+    with st.container(border=True):
+        st.markdown(
+            """
+            <p class="bb-section-label">Menu catalog</p>
+            <p class="bb-sec-h" style="margin:0 0 0.75rem 0;font-size:1.5rem;">Our coffee menu</p>
+            """,
+            unsafe_allow_html=True,
+        )
+        catalog_search = st.text_input(
+            "Search the menu",
+            "",
+            key="bb_catalog_search",
+            placeholder="Search by name or description…",
+        )
+        menu_drinks = _menu_catalog_drinks(ag)
+        _warm_catalog_images(menu_drinks)
+        shown = len(menu_drinks)
+        if catalog_search.strip():
+            q = catalog_search.strip().lower()
+            shown = sum(
+                1
+                for d in menu_drinks
+                if q in d.lower() or q in _catalog_drink_description(d, _menu_meta).lower()
+        )
+        st.caption(f"**{shown}** drinks on the menu · scores use your current sidebar settings")
+        _render_catalog_grid(ag, _menu_meta, catalog_search, cols_per_row=3)
+        _sel = st.session_state.bb_selected_catalog_drink
+        if _sel and _sel in ag.coffee_items:
+            st.markdown("")
+            _render_catalog_drink_detail(ag, _sel, _menu_meta)
 
 # —— Body ——
 main, aside = st.columns([1.55, 0.9])
