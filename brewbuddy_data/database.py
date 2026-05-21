@@ -131,6 +131,24 @@ def get_cafe_menu_path() -> Path:
     return Path(__file__).resolve().parent / "datasets" / "cafe_menu.csv"
 
 
+def get_cafe_menu_meta() -> Dict[str, Dict[str, str]]:
+    """Short copy for sidebar catalog cards (from cafe_menu.csv)."""
+    path = get_cafe_menu_path()
+    if not path.exists():
+        return {}
+    df = pd.read_csv(path)
+    out: Dict[str, Dict[str, str]] = {}
+    for _, row in df.iterrows():
+        name = str(row.get("name", "")).strip()
+        if not name:
+            continue
+        out[name] = {
+            "description": str(row.get("desc_1", "") or row.get("desc_2", "") or "").strip(),
+            "roast": str(row.get("roast", "") or "").strip(),
+        }
+    return out
+
+
 def get_catalog_table(db_path: Optional[Path] = None) -> pd.DataFrame:
     """All coffees for UI catalog (sorted: seed/menu first, then name)."""
     init_db(db_path)

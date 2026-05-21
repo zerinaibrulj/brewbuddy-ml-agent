@@ -3,6 +3,7 @@
 from .database import (
     get_default_db_path,
     get_cafe_menu_path,
+    get_cafe_menu_meta,
     get_catalog_table,
     init_db,
     get_coffee_dicts,
@@ -18,6 +19,7 @@ from .database import (
 __all__ = [
     "get_default_db_path",
     "get_cafe_menu_path",
+    "get_cafe_menu_meta",
     "get_catalog_table",
     "init_db",
     "get_coffee_dicts",

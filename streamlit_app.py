@@ -22,6 +22,7 @@ from sklearn.linear_model import Ridge
 from background_worker import BackgroundWorker
 from brewbuddy_agent import BrewBuddyAgent, NoWork
 from brewbuddy_data.database import (
+    get_cafe_menu_meta,
     get_catalog_table,
     get_user_profile,
     import_cafe_menu,
@@ -30,6 +31,7 @@ from brewbuddy_data.database import (
     reset_catalog_to_cafe_menu,
     save_user_profile,
 )
+from hybrid_ml import coffee_to_vector
 
 # —— Theme: premium dark, warm gold / espresso accents ——
 st.set_page_config(
@@ -694,6 +696,30 @@ st.markdown(
         border-radius: 14px !important;
         box-shadow: 0 12px 40px -12px rgba(0,0,0,0.6), 0 0 0 1px rgba(212,166,116,0.15) !important;
     }}
+    /* Sidebar catalog cards */
+    [data-testid="stSidebar"] [data-testid="stVerticalBlockBorderWrapper"] {{
+        margin-bottom: 0.35rem !important;
+    }}
+    [data-testid="stSidebar"] .bb-catalog-card-title {{
+        font-family: 'Outfit', sans-serif;
+        font-size: 0.82rem;
+        font-weight: 600;
+        color: #f0e8e0 !important;
+        margin: 0.35rem 0 0.15rem 0;
+        line-height: 1.25;
+    }}
+    [data-testid="stSidebar"] .bb-catalog-card-desc {{
+        font-size: 0.7rem;
+        color: #9a9590 !important;
+        line-height: 1.4;
+        margin: 0 0 0.35rem 0;
+        min-height: 2.6em;
+    }}
+    [data-testid="stSidebar"] [data-testid="stImage"] img {{
+        border-radius: 10px !important;
+        aspect-ratio: 4/3;
+        object-fit: cover;
+    }}
     </style>
     """,
     unsafe_allow_html=True,
@@ -729,6 +755,11 @@ if "worker_status" not in st.session_state:
     st.session_state.worker_status = None
 if "last_pending_recommendation" not in st.session_state:
     st.session_state.last_pending_recommendation = None
+if "bb_selected_catalog_drink" not in st.session_state:
+    st.session_state.bb_selected_catalog_drink = None
+
+NEED_VECTOR_LABELS = ("stimulation", "comfort", "dairy concern", "mildness")
+COFFEE_VECTOR_LABELS = ("stimulation", "comfort", "dairy load", "mildness")
 
 if "catalog_ready" not in st.session_state:
     catalog_df = get_catalog_table()
@@ -852,6 +883,141 @@ def build_live_context_board_html(
     )
 
 
+@st.cache_data
+def _cached_cafe_menu_meta() -> dict:
+    return get_cafe_menu_meta()
+
+
+def _menu_catalog_drinks(agent: BrewBuddyAgent) -> list[str]:
+    """Drinks from seed + café menu (recognizable catalog)."""
+    names: list[str] = []
+    for name in sorted(agent.coffees):
+        ref = (agent.coffee_items.get(name) or {}).get("source_ref") or "seed"
+        if ref in ("seed", "cafe_menu"):
+            names.append(name)
+    return names if names else sorted(agent.coffees)
+
+
+def _catalog_placeholder_image(coffee_name: str) -> Optional[str]:
+    path = get_coffee_image_path(coffee_name)
+    if path and os.path.exists(path):
+        return path
+    for fp in ("images/coffee1.png", "images/espresso.jpg", "images/latte.webp"):
+        if os.path.exists(fp):
+            return fp
+    return None
+
+
+def _catalog_drink_description(name: str, menu_meta: dict) -> str:
+    if name in menu_meta and menu_meta[name].get("description"):
+        return menu_meta[name]["description"]
+    return COFFEE_DESCRIPTIONS.get(name, "A balanced café favorite from our menu.")
+
+
+def _drink_ml_snapshot(agent: BrewBuddyAgent, drink_name: str) -> dict:
+    """Need vector, 4D coffee vector, and cosine vs current need."""
+    meta = agent.coffee_items.get(drink_name) or {}
+    need = list(agent.last_need_vector or [])
+    if len(need) < 4:
+        need = [0.0, 0.0, 0.0, 0.0]
+    cvec = coffee_to_vector(meta).tolist()
+    n = np.array(need, dtype=float)
+    v = np.array(cvec, dtype=float)
+    nu = float(np.linalg.norm(n)) or 1.0
+    nv = float(np.linalg.norm(v)) or 1.0
+    cosine = float(np.dot(n, v) / (nu * nv))
+    shortlist_cos = (agent.last_cosine_scores or {}).get(drink_name)
+    return {
+        "need": {NEED_VECTOR_LABELS[i]: round(float(need[i]), 4) for i in range(4)},
+        "coffee_vector": {COFFEE_VECTOR_LABELS[i]: round(float(cvec[i]), 4) for i in range(4)},
+        "cosine_similarity": round(cosine, 4),
+        "shortlist_cosine": round(float(shortlist_cos), 4) if shortlist_cos is not None else None,
+        "state_category": str(meta.get("state_category", "—")).replace("_", " "),
+    }
+
+
+def _render_sidebar_catalog_grid(
+    agent: BrewBuddyAgent,
+    menu_meta: dict,
+    search: str,
+    *,
+    cols_per_row: int = 2,
+) -> None:
+    drinks = _menu_catalog_drinks(agent)
+    if search.strip():
+        q = search.strip().lower()
+        drinks = [d for d in drinks if q in d.lower() or q in _catalog_drink_description(d, menu_meta).lower()]
+    selected = st.session_state.bb_selected_catalog_drink
+    cos_map = agent.last_cosine_scores or {}
+
+    if not drinks:
+        st.info("No menu drinks loaded. Use **Reload café menu** in Catalog & datasets.")
+        return
+
+    for i in range(0, len(drinks), cols_per_row):
+        cols = st.columns(cols_per_row)
+        for j, col in enumerate(cols):
+            idx = i + j
+            if idx >= len(drinks):
+                break
+            name = drinks[idx]
+            with col:
+                with st.container(border=True):
+                    img_path = _catalog_placeholder_image(name)
+                    if img_path:
+                        st.image(Image.open(img_path), use_container_width=True)
+                    desc = _catalog_drink_description(name, menu_meta)
+                    if len(desc) > 110:
+                        desc = desc[:107].rstrip() + "…"
+                    st.markdown(f'<p class="bb-catalog-card-title">{html.escape(name)}</p>', unsafe_allow_html=True)
+                    st.markdown(f'<p class="bb-catalog-card-desc">{html.escape(desc)}</p>', unsafe_allow_html=True)
+                    cos = cos_map.get(name)
+                    if cos is None and agent.last_need_vector:
+                        cos = _drink_ml_snapshot(agent, name)["cosine_similarity"]
+                    if cos is not None:
+                        st.caption(f"Match **{cos:.3f}**")
+                    is_sel = selected == name
+                    if st.button(
+                        "Selected" if is_sel else "View details",
+                        key=f"bb_cat_pick_{abs(hash(name)) % 10**8}",
+                        use_container_width=True,
+                        type="primary" if is_sel else "secondary",
+                    ):
+                        st.session_state.bb_selected_catalog_drink = None if is_sel else name
+                        st.rerun()
+
+
+def _render_catalog_drink_detail(agent: BrewBuddyAgent, drink_name: str, menu_meta: dict) -> None:
+    snap = _drink_ml_snapshot(agent, drink_name)
+    img_path = _catalog_placeholder_image(drink_name)
+    with st.container(border=True):
+        st.markdown('<p class="bb-section-label" style="margin-top:0;">Selected drink · ML snapshot</p>', unsafe_allow_html=True)
+        head_l, head_r = st.columns([1, 1.2])
+        with head_l:
+            if img_path:
+                st.image(Image.open(img_path), use_container_width=True)
+        with head_r:
+            st.markdown(f"**{drink_name}**")
+            st.caption(_catalog_drink_description(drink_name, menu_meta))
+            roast = (menu_meta.get(drink_name) or {}).get("roast")
+            if roast:
+                st.caption(f"Roast · {roast}")
+            st.caption(f"Category · **{snap['state_category'].title()}**")
+        st.metric("Cosine similarity (your need ↔ this drink)", f"{snap['cosine_similarity']:.3f}")
+        if snap["shortlist_cosine"] is not None:
+            st.caption(f"Score in current hybrid shortlist: **{snap['shortlist_cosine']:.3f}**")
+        v1, v2 = st.columns(2)
+        with v1:
+            st.markdown("**Your need vector**")
+            st.json(snap["need"])
+        with v2:
+            st.markdown("**Drink feature vector**")
+            st.json(snap["coffee_vector"])
+        if st.button("Clear selection", use_container_width=True, key="bb_cat_clear"):
+            st.session_state.bb_selected_catalog_drink = None
+            st.rerun()
+
+
 def get_coffee_image_path(coffee_name: str):
     normalized = coffee_name.lower()
     image_mapping = {
@@ -888,27 +1054,7 @@ with st.sidebar:
     st.markdown('<p class="bb-sidebar-kicker">Brewbuddy</p>', unsafe_allow_html=True)
     st.markdown('<p class="bb-sidebar-title">Control room</p>', unsafe_allow_html=True)
 
-    with st.expander("Menu catalog", expanded=True):
-        st.caption("Drinks currently on offer — search and scroll the full menu.")
-        catalog_search = st.text_input("Search menu", "", key="bb_catalog_search", label_visibility="collapsed", placeholder="Search drinks…")
-        catalog_df = get_catalog_table()
-        if catalog_search.strip():
-            mask = catalog_df["Drink"].str.contains(catalog_search.strip(), case=False, na=False)
-            catalog_df = catalog_df[mask]
-        st.caption(f"**{len(catalog_df)}** drinks shown · **{len(st.session_state.agent.coffees)}** in active policy")
-        st.dataframe(
-            catalog_df,
-            use_container_width=True,
-            height=min(420, 38 + len(catalog_df) * 35),
-            hide_index=True,
-            column_config={
-                "Drink": st.column_config.TextColumn("Drink", width="medium"),
-                "Category": st.column_config.TextColumn("Category", width="small"),
-                "Caffeine": st.column_config.NumberColumn("Caffeine", format="%.2f", width="small"),
-                "Dairy": st.column_config.NumberColumn("Dairy", format="%.2f", width="small"),
-                "Source": st.column_config.TextColumn("Source", width="small"),
-            },
-        )
+    _menu_meta = _cached_cafe_menu_meta()
 
     with st.expander("Learning engine", expanded=True):
         strategy = st.selectbox(
@@ -1036,6 +1182,31 @@ with st.sidebar:
         subjective=subjective_payload if use_subjective else None,
         user_profile=profile,
     )
+
+    with st.expander("Menu catalog", expanded=True):
+        st.caption("Tap a drink for its vectors and cosine match vs your current need.")
+        catalog_search = st.text_input(
+            "Search menu",
+            "",
+            key="bb_catalog_search",
+            label_visibility="collapsed",
+            placeholder="Search drinks…",
+        )
+        menu_drinks = _menu_catalog_drinks(st.session_state.agent)
+        shown = len(menu_drinks)
+        if catalog_search.strip():
+            q = catalog_search.strip().lower()
+            shown = sum(
+                1
+                for d in menu_drinks
+                if q in d.lower() or q in _catalog_drink_description(d, _menu_meta).lower()
+            )
+        st.caption(f"**{shown}** on menu · **{len(st.session_state.agent.coffees)}** in policy")
+        _render_sidebar_catalog_grid(st.session_state.agent, _menu_meta, catalog_search)
+
+    _sel = st.session_state.bb_selected_catalog_drink
+    if _sel and _sel in st.session_state.agent.coffee_items:
+        _render_catalog_drink_detail(st.session_state.agent, _sel, _menu_meta)
 
     with st.expander("Engineering: need vector & cosine scores", expanded=False):
         st.caption(
