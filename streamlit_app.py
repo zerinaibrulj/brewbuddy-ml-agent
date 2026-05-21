@@ -6,7 +6,6 @@ from __future__ import annotations
 
 import html
 import os
-from pathlib import Path
 import random
 from ast import literal_eval
 from typing import Optional
@@ -22,11 +21,9 @@ from sklearn.linear_model import Ridge
 from background_worker import BackgroundWorker
 from brewbuddy_agent import BrewBuddyAgent, NoWork
 from brewbuddy_data.database import (
+    ensure_cafe_menu_catalog,
     get_cafe_menu_meta,
-    get_catalog_table,
     get_user_profile,
-    import_cafe_menu,
-    import_dataset_rows,
     init_db,
     reset_catalog_to_cafe_menu,
     save_user_profile,
@@ -789,33 +786,10 @@ NEED_VECTOR_LABELS = ("stimulation", "comfort", "dairy concern", "mildness")
 COFFEE_VECTOR_LABELS = ("stimulation", "comfort", "dairy load", "mildness")
 
 if "catalog_ready" not in st.session_state:
-    catalog_df = get_catalog_table()
-    obscure = len(catalog_df) > 40 or (
-        not catalog_df.empty and (catalog_df["Source"] == "dataset").sum() > 5
-    )
-    if obscure or len(catalog_df) < 20:
-        reset_catalog_to_cafe_menu()
-    else:
-        import_cafe_menu()
+    ensure_cafe_menu_catalog()
     if "agent" in st.session_state:
         st.session_state.agent.reload_catalog_from_db()
     st.session_state.catalog_ready = True
-
-COFFEE_DESCRIPTIONS = {
-    "Espresso": "Intense, concentrated, and unapologetically bold.",
-    "Cappuccino": "Equal parts espresso, steamed milk, and airy foam.",
-    "Latte": "Silky steamed milk over a base of smooth espresso.",
-    "Americano": "Espresso opened up with hot water. Clean and direct.",
-    "Mocha": "A gentle bridge between coffee and dark chocolate.",
-    "Macchiato": "Espresso “marked” with a touch of foamed milk.",
-    "Flat White": "Ristretto and velvety microfoam, compact and strong.",
-    "Cortado": "Espresso and warm milk, cut in balance.",
-    "Cold Brew": "Slow-steeped, smooth, and naturally low in acidity.",
-    "Iced Coffee": "Chilled, refreshing, and ready to go.",
-    "Frappuccino": "Blended, cool, and indulgent.",
-    "Decaf": "The ritual without the buzz.",
-}
-
 
 def _temperature_band_label(temperature: Optional[float]) -> str:
     if temperature is None:
@@ -916,13 +890,13 @@ def _cached_cafe_menu_meta() -> dict:
 
 
 def _menu_catalog_drinks(agent: BrewBuddyAgent) -> list[str]:
-    """Drinks from seed + café menu (recognizable catalog)."""
+    """Drinks from cafe_menu.csv (source_ref = cafe_menu in SQLite)."""
     names: list[str] = []
     for name in sorted(agent.coffees):
-        ref = (agent.coffee_items.get(name) or {}).get("source_ref") or "seed"
-        if ref in ("seed", "cafe_menu"):
+        ref = (agent.coffee_items.get(name) or {}).get("source_ref")
+        if ref == "cafe_menu":
             names.append(name)
-    return names if names else sorted(agent.coffees)
+    return names
 
 
 def _catalog_image(coffee_name: str) -> Optional[str]:
@@ -938,7 +912,7 @@ def _warm_catalog_images(drinks: list[str]) -> None:
 def _catalog_drink_description(name: str, menu_meta: dict) -> str:
     if name in menu_meta and menu_meta[name].get("description"):
         return menu_meta[name]["description"]
-    return COFFEE_DESCRIPTIONS.get(name, "A balanced café favorite from our menu.")
+    return "A balanced café favorite from our menu."
 
 
 def _drink_ml_snapshot(agent: BrewBuddyAgent, drink_name: str) -> dict:
@@ -1140,31 +1114,14 @@ with st.sidebar:
         use_hybrid = st.toggle("Classify state → cosine shortlist → policy", value=True, help="Matches `state_category` in the database.")
         st.session_state.agent.use_hybrid = use_hybrid
 
-    with st.expander("Catalog & datasets", expanded=False):
-        st.caption(
-            "Default menu uses **cafe_menu.csv** (familiar drink names). "
-            "Specialty bean datasets add obscure origins — use only if you need a large catalog for demos."
-        )
-        if st.button("Reload café menu (recommended)", use_container_width=True, type="primary"):
+    with st.expander("Catalog maintenance", expanded=False):
+        st.caption("Catalog is loaded from **brewbuddy_data/datasets/cafe_menu.csv** (35 drinks).")
+        if st.button("Reload café menu from CSV", use_container_width=True, type="secondary"):
             reset_catalog_to_cafe_menu()
             st.session_state.agent.reload_catalog_from_db()
             st.session_state.catalog_ready = True
-            st.success(f"Menu refreshed — **{len(st.session_state.agent.coffees)}** drinks active.")
+            st.success(f"Menu refreshed — **{len(st.session_state.agent.coffees)}** drinks in policy.")
             st.rerun()
-        with st.expander("Advanced: specialty bean datasets", expanded=False):
-            rows_per = st.slider("Rows per file (max)", 50, 800, 150, 50)
-            if st.button("Import Coffee Review CSVs", use_container_width=True, type="secondary"):
-                base = Path(__file__).resolve().parent / "brewbuddy_data" / "datasets"
-                result = import_dataset_rows(
-                    dataset_paths=[base / "simplified_coffee.csv", base / "coffee_analysis.csv"],
-                    limit_per_dataset=rows_per,
-                )
-                st.session_state.agent.reload_catalog_from_db()
-                st.warning(
-                    f"Added specialty rows: +{result['inserted']} new, {result['updated']} updated. "
-                    "Names may be unfamiliar — use **Reload café menu** to reset."
-                )
-                st.rerun()
         st.caption(f"Active policy catalog: **{len(st.session_state.agent.coffees)}** drinks")
 
     subjective_payload = {
@@ -1398,7 +1355,7 @@ with main:
             st.markdown(
                 f"""
             <p class="bb-drink-name">{coffee_name}</p>
-            <p class="bb-drink-desc">{COFFEE_DESCRIPTIONS.get(coffee_name, "A delicious option.")}</p>
+            <p class="bb-drink-desc">{_catalog_drink_description(coffee_name, _cached_cafe_menu_meta())}</p>
             <p style="text-align:center; margin-top:0.35rem;">
                 <span class="bb-chip">State: {ml_state}</span>
                 <span class="bb-chip">Caffeine {caffeine_level:.2f}</span>
@@ -1501,16 +1458,11 @@ _stats = st.session_state.agent.get_statistics()
 _catalog_count = len(st.session_state.agent.coffee_items)
 _history = st.session_state.agent.interaction_history
 _n_states = len({h.get("context") for h in _history if h.get("context")}) if _history else 0
-_source_badge = "seed"
+_source_badge = "cafe_menu"
 if _catalog_count:
-    source_vals = {
-        (m.get("source_ref") or "seed")
-        for m in st.session_state.agent.coffee_items.values()
-    }
-    if "dataset" in source_vals and len(source_vals) > 1:
+    source_vals = {(m.get("source_ref") or "cafe_menu") for m in st.session_state.agent.coffee_items.values()}
+    if len(source_vals) > 1:
         _source_badge = "mixed"
-    elif "dataset" in source_vals:
-        _source_badge = "dataset"
 
 st.markdown(
     f"""
@@ -1678,14 +1630,18 @@ with t4:
         st.info("Enable context and add interactions.")
 
 with t5:
-    st.caption("Catalog composition and source quality (seed vs imported datasets).")
+    st.caption(
+        "Active café menu in SQLite (`coffee_items`, source **cafe_menu**). "
+        "Features are inferred from drink descriptions in **cafe_menu.csv**."
+    )
     catalog_rows = []
     for n, meta in st.session_state.agent.coffee_items.items():
+        if meta.get("source_ref") != "cafe_menu":
+            continue
         catalog_rows.append(
             {
                 "Coffee": n,
                 "Category": meta.get("state_category"),
-                "Source": meta.get("source_ref") or "seed",
                 "Caffeine": float(meta.get("caffeine_level", 0)),
                 "Bitterness": float(meta.get("bitterness", 0)),
                 "Dairy": float(meta.get("dairy_load", 0)),
@@ -1693,27 +1649,14 @@ with t5:
         )
     if catalog_rows:
         cdf = pd.DataFrame(catalog_rows)
-        source_counts = cdf.groupby("Source").size().reset_index(name="Count")
-        fig = px.pie(source_counts, values="Count", names="Source", hole=0.45)
-        _apply_plot_theme(fig)
-        fig.update_traces(
-            textinfo="percent+label",
-            marker=dict(line=dict(color="rgba(255,255,255,0.08)", width=1)),
-        )
-        fig.update_layout(
-            showlegend=True,
-            title=dict(text="Catalog composition by source", x=0.5, xanchor="center", font=dict(size=15, color=ACCENT)),
-            legend=dict(orientation="h", yanchor="bottom", y=1.08, x=0),
-            margin=dict(t=52, b=48),
-        )
-        st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+        st.metric("Menu drinks in database", len(cdf))
         st.dataframe(
-            cdf.sort_values(["Source", "Coffee"]).reset_index(drop=True),
+            cdf.sort_values("Coffee").reset_index(drop=True),
             use_container_width=True,
-            height=280,
+            height=320,
         )
     else:
-        st.info("No catalog rows available.")
+        st.info("No café menu rows — use sidebar **Reload café menu from CSV**.")
 
 with t6:
     st.caption("Evaluation and ablation summary from logged interactions.")

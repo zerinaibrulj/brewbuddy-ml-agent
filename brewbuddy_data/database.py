@@ -1,6 +1,6 @@
 """
 SQLite persistence: coffee catalog (feature vectors), user profile, interaction log.
-Seeded data is suitable for CQI/Starbucks-style import later (see source_ref, extra_json).
+Active catalog: brewbuddy_data/datasets/cafe_menu.csv → coffee_items (source_ref = cafe_menu).
 """
 
 from __future__ import annotations
@@ -75,49 +75,11 @@ def _schema() -> str:
     """
 
 
-def _seed_coffees() -> List[Dict[str, Any]]:
-    """
-    Seeded menu with interpretable features (0–1) for content-based / cosine layer.
-    state_category aligns with hybrid ML classifier labels.
-    """
-    return [
-        {"name": "Espresso", "caffeine": 0.95, "milk": 0.0, "dairy": 0.0, "bitter": 0.85, "cat": "extreme_caffeine"},
-        {"name": "Cappuccino", "caffeine": 0.55, "milk": 0.6, "dairy": 0.55, "bitter": 0.4, "cat": "comfort"},
-        {"name": "Latte", "caffeine": 0.45, "milk": 0.78, "dairy": 0.65, "bitter": 0.25, "cat": "comfort"},
-        {"name": "Americano", "caffeine": 0.7, "milk": 0.0, "dairy": 0.0, "bitter": 0.55, "cat": "extreme_caffeine"},
-        {"name": "Mocha", "caffeine": 0.4, "milk": 0.55, "dairy": 0.6, "bitter": 0.35, "cat": "balanced"},
-        {"name": "Macchiato", "caffeine": 0.6, "milk": 0.35, "dairy": 0.3, "bitter": 0.6, "cat": "light_wakeup"},
-        {"name": "Flat White", "caffeine": 0.5, "milk": 0.65, "dairy": 0.6, "bitter": 0.35, "cat": "light_wakeup"},
-        {"name": "Cortado", "caffeine": 0.6, "milk": 0.45, "dairy": 0.4, "bitter": 0.45, "cat": "light_wakeup"},
-        {"name": "Cold Brew", "caffeine": 0.85, "milk": 0.0, "dairy": 0.0, "bitter": 0.5, "cat": "extreme_caffeine"},
-        {"name": "Iced Coffee", "caffeine": 0.7, "milk": 0.15, "dairy": 0.12, "bitter": 0.4, "cat": "extreme_caffeine"},
-        {"name": "Frappuccino", "caffeine": 0.3, "milk": 0.7, "dairy": 0.55, "bitter": 0.2, "cat": "balanced"},
-        {"name": "Decaf", "caffeine": 0.05, "milk": 0.0, "dairy": 0.0, "bitter": 0.2, "cat": "relaxation"},
-    ]
-
-
-def init_db(db_path: Optional[Path] = None) -> None:
+def _bootstrap_db(db_path: Optional[Path] = None) -> Path:
+    """Create schema and default user profile only (no catalog import)."""
     path = db_path or get_default_db_path()
     with _connect(path) as c:
         c.executescript(_schema())
-        cur = c.execute("SELECT COUNT(*) AS n FROM coffee_items")
-        if cur.fetchone()["n"] == 0:
-            for row in _seed_coffees():
-                c.execute(
-                    """
-                    INSERT INTO coffee_items
-                    (name, caffeine_level, milk_level, dairy_load, bitterness, state_category, source_ref, extra_json)
-                    VALUES (?, ?, ?, ?, ?, ?, 'seed', NULL)
-                    """,
-                    (
-                        row["name"],
-                        row["caffeine"],
-                        row["milk"],
-                        row["dairy"],
-                        row["bitter"],
-                        row["cat"],
-                    ),
-                )
         if c.execute("SELECT 1 FROM user_profile WHERE id = 1").fetchone() is None:
             c.execute(
                 "INSERT INTO user_profile (id, pref_strong_caffeine, pref_lactose_free, pref_low_bitterness, updated_at) "
@@ -125,6 +87,18 @@ def init_db(db_path: Optional[Path] = None) -> None:
                 (datetime.utcnow().isoformat() + "Z",),
             )
         c.commit()
+    return path
+
+
+def init_db(db_path: Optional[Path] = None) -> None:
+    path = _bootstrap_db(db_path)
+    if _coffee_item_count(path) == 0:
+        import_cafe_menu(path)
+
+
+def _coffee_item_count(db_path: Path) -> int:
+    with _connect(db_path) as c:
+        return int(c.execute("SELECT COUNT(*) FROM coffee_items").fetchone()[0])
 
 
 def get_cafe_menu_path() -> Path:
@@ -145,25 +119,21 @@ def get_cafe_menu_meta() -> Dict[str, Dict[str, str]]:
         out[name] = {
             "description": str(row.get("desc_1", "") or row.get("desc_2", "") or "").strip(),
             "roast": str(row.get("roast", "") or "").strip(),
+            "image": str(row.get("image", "") or "").strip(),
         }
     return out
 
 
 def get_catalog_table(db_path: Optional[Path] = None) -> pd.DataFrame:
-    """All coffees for UI catalog (sorted: seed/menu first, then name)."""
+    """Active café menu rows in coffee_items (source_ref = cafe_menu)."""
     init_db(db_path)
     with _connect(db_path or get_default_db_path()) as c:
         rows = c.execute(
             """
             SELECT name, caffeine_level, dairy_load, bitterness, state_category, source_ref
             FROM coffee_items
-            ORDER BY
-                CASE source_ref
-                    WHEN 'seed' THEN 0
-                    WHEN 'cafe_menu' THEN 1
-                    ELSE 2
-                END,
-                name
+            WHERE source_ref = 'cafe_menu'
+            ORDER BY name
             """
         ).fetchall()
     return pd.DataFrame(
@@ -173,7 +143,7 @@ def get_catalog_table(db_path: Optional[Path] = None) -> pd.DataFrame:
                 "Category": str(r["state_category"]).replace("_", " "),
                 "Caffeine": round(float(r["caffeine_level"]), 2),
                 "Dairy": round(float(r["dairy_load"]), 2),
-                "Source": r["source_ref"] or "seed",
+                "Source": r["source_ref"] or "cafe_menu",
             }
             for r in rows
         ]
@@ -427,17 +397,29 @@ def import_cafe_menu(db_path: Optional[Path] = None) -> Dict[str, int]:
 
 
 def reset_catalog_to_cafe_menu(db_path: Optional[Path] = None) -> Dict[str, int]:
-    """
-    Remove obscure specialty imports; keep built-in seed drinks and reload café menu CSV.
-    Use after importing Coffee Review datasets that add unfamiliar bean names.
-    """
+    """Replace coffee_items with the curated café menu only (cafe_menu.csv)."""
     path = db_path or get_default_db_path()
     init_db(path)
     with _connect(path) as c:
-        c.execute("DELETE FROM coffee_items WHERE source_ref NOT IN ('seed', 'cafe_menu')")
+        c.execute("DELETE FROM coffee_items")
         c.commit()
     menu = import_cafe_menu(path)
-    return {"removed_obscure": True, **menu}
+    return menu
+
+
+def ensure_cafe_menu_catalog(db_path: Optional[Path] = None) -> Dict[str, int]:
+    """Ensure DB catalog matches cafe_menu.csv only; re-import if stale or mixed sources."""
+    path = db_path or get_default_db_path()
+    init_db(path)
+    expected = len(get_cafe_menu_meta())
+    with _connect(path) as c:
+        total = int(c.execute("SELECT COUNT(*) FROM coffee_items").fetchone()[0])
+        cafe_only = int(
+            c.execute("SELECT COUNT(*) FROM coffee_items WHERE source_ref = 'cafe_menu'").fetchone()[0]
+        )
+    if total == expected and cafe_only == expected:
+        return {"seen": total, "inserted": 0, "updated": 0, "skipped": True}
+    return reset_catalog_to_cafe_menu(path)
 
 
 def import_dataset_rows(
@@ -456,8 +438,7 @@ def import_dataset_rows(
     inserted = 0
     updated = 0
     seen = 0
-    init_db(db_path)
-    path = db_path or get_default_db_path()
+    path = _bootstrap_db(db_path)
     with _connect(path) as c:
         for p in paths:
             if not p.exists():

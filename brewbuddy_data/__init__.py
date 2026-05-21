@@ -1,33 +1,33 @@
-"""BrewBuddy data layer: SQLite persistence and seeded coffee attributes."""
+"""BrewBuddy data layer: SQLite persistence and café menu catalog."""
 
 from .database import (
-    get_default_db_path,
-    get_cafe_menu_path,
+    ensure_cafe_menu_catalog,
     get_cafe_menu_meta,
+    get_cafe_menu_path,
     get_catalog_table,
-    init_db,
+    get_default_db_path,
     get_coffee_dicts,
     get_coffee_list,
     get_user_profile,
-    save_user_profile,
-    log_interaction,
     import_cafe_menu,
-    import_dataset_rows,
+    init_db,
+    log_interaction,
     reset_catalog_to_cafe_menu,
+    save_user_profile,
 )
 
 __all__ = [
-    "get_default_db_path",
-    "get_cafe_menu_path",
+    "ensure_cafe_menu_catalog",
     "get_cafe_menu_meta",
+    "get_cafe_menu_path",
     "get_catalog_table",
-    "init_db",
+    "get_default_db_path",
     "get_coffee_dicts",
     "get_coffee_list",
     "get_user_profile",
-    "save_user_profile",
-    "log_interaction",
     "import_cafe_menu",
-    "import_dataset_rows",
+    "init_db",
+    "log_interaction",
     "reset_catalog_to_cafe_menu",
+    "save_user_profile",
 ]

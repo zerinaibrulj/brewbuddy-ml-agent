@@ -5,7 +5,7 @@ Hybrid AI Agent + Machine Learning recommender for personalized coffee decisions
 BrewBuddy is built as a competition-ready prototype where:
 - **ML layer** understands user context and preference fit,
 - **AI layer** selects actions adaptively using reinforcement/bandit policies,
-- **Data layer** persists learning and supports dataset-driven catalog expansion.
+- **Data layer** persists learning in SQLite, driven by a single curated café menu.
 
 ---
 
@@ -17,8 +17,6 @@ BrewBuddy combines:
 3. **Policy selection** (Q-learning / Thompson / UCB) over a shortlist,
 4. **Continuous learning** from user ratings.
 
-It supports both classic RL behavior and a modern hybrid ML workflow.
-
 ---
 
 ## Core Implemented Features
@@ -26,85 +24,48 @@ It supports both classic RL behavior and a modern hybrid ML workflow.
 ### 1) Subjective + External Feature Engineering
 - **Subjective**: `sleep_hours`, `fatigue`, `lactose_intolerance`, `social_battery`
 - **External**: `time_of_day`, `weather`, `temperature`
-- These are used to build richer context/state keys and recommendation logic.
 
 ### 2) Hybrid Decision Pipeline
-- **Classifier layer** maps current state to categories (e.g., `extreme_caffeine`, `comfort`, `balanced`, etc.).
-- **Content layer** computes cosine similarity between current need vector and coffee feature vectors.
-- **Policy layer** chooses the final recommendation from the shortlisted set using:
-  - `qlearning`
-  - `thompson`
-  - `ucb`
+- **Classifier layer** → categories (`extreme_caffeine`, `comfort`, `balanced`, …)
+- **Content layer** → cosine similarity vs `coffee_items` feature vectors
+- **Policy layer** → `qlearning` | `thompson` | `ucb`
 
 ### 3) Persistent Data Layer (SQLite)
 Database: `data/brewbuddy.db`
-- `coffee_items` (catalog + normalized features)
-- `user_profile` (taste preferences)
-- `interaction_log` (full learning history)
+| Table | Purpose |
+|-------|---------|
+| `coffee_items` | 35 drinks from `cafe_menu.csv` (`source_ref = cafe_menu`) |
+| `user_profile` | Taste preferences |
+| `interaction_log` | Ratings, vectors, context keys |
 
-### 4) Dataset Integration
-- **Default (recommended):** `brewbuddy_data/datasets/cafe_menu.csv` — familiar café drink names (latte, cappuccino, cold brew, etc.).
-- **Optional (advanced):** Coffee Review specialty CSVs (`simplified_coffee.csv`, `coffee_analysis.csv`) — thousands of single-origin beans; useful for scale demos but poor UX for end users.
-- UI: **Menu catalog** sidebar (searchable list) + **Reload café menu** resets obscure imports.
-- Rows are normalized into feature vectors and upserted into `coffee_items`.
+### 4) Dataset (single source of truth)
+- **`brewbuddy_data/datasets/cafe_menu.csv`** — drink names, descriptions, roast, **image** filename
+- **`images/`** — one photo per drink (see `image` column in CSV)
+- Legacy Coffee Review CSVs live in `datasets/archive/` (not used by the app)
 
 ### 5) Explainability
-- Every recommendation can show a **narrative explanation**:
-  - predicted state,
-  - cosine match relevance,
-  - active constraints (e.g., lactose),
-  - final policy decision context.
+- Narrative per recommendation (state, cosine match, constraints, policy)
 
 ### 6) Evaluation + Ablation
-- Validation tab includes:
-  - state-level reward analysis
-  - coverage indicators
-  - offline ablation comparison
-- Ablations compare:
-  - Hybrid (logged)
-  - Cosine-only
-  - Content-only
-  - Bandit-mean
-  - Random
+- Validation tab: state rewards, offline ablation (hybrid vs cosine-only vs random, …)
 
 ### 7) Modern UI / UX
-- Premium dark interface (gold/coffee accents)
-- **Main dashboard:** **Browse the full menu catalog** opens a card grid (unique image per drink, ML snapshot on select)
-- **Sidebar:** Control room + ML engineering panel (need vector + cosine scores)
-- Card-based recommendation display + alternatives
-- Analytics tabs for:
-  - Q-Table
-  - By coffee
-  - Curve
-  - Context
-  - Catalog
-  - Validation
+- **Dashboard:** Browse full menu catalog (card grid + ML snapshot on click)
+- **Sidebar:** Control room + engineering panel (need vector & cosine scores)
+- Analytics: Q-Table, By coffee, Curve, Context, Catalog, Validation
 
 ---
 
 ## Tech Stack
 
 - Python 3.8+
-- Streamlit
-- Pandas / NumPy
-- scikit-learn
-- Plotly
-- SQLite (built-in `sqlite3`)
-- Pillow
-
-See `requirements.txt` for exact dependencies.
+- Streamlit · Pandas · NumPy · scikit-learn · Plotly · Pillow · SQLite
 
 ---
 
 ## Installation
 
 ```bash
-python -m venv venv
-# Windows
-venv\Scripts\activate
-# Linux/Mac
-source venv/bin/activate
-
 pip install -r requirements.txt
 ```
 
@@ -122,12 +83,12 @@ Open: `http://localhost:8501`
 
 ## Recommended Demo Flow
 
-1. Launch app and open sidebar **Control room** — browse the **Menu catalog**.
-2. Set context + subjective state in the sidebar expanders.
-3. Click **Request recommendation** (under Live context) and inspect the explainability narrative.
-4. Rate the drink; optional: open **Engineering** in the sidebar for need vector / cosine scores.
-5. Open **Validation** for evaluation + ablations.
-6. Use **Reload café menu** if the catalog shows unfamiliar specialty bean names.
+1. Click **Browse the full menu catalog** on the dashboard.
+2. Set context in sidebar **Control room**.
+3. **Request recommendation** → read explainability → rate.
+4. Sidebar **Engineering** for need vector / cosine JSON.
+5. **Validation** tab after several ratings.
+6. **Analytics → Catalog** to show DB feature table.
 
 ---
 
@@ -135,40 +96,28 @@ Open: `http://localhost:8501`
 
 ```text
 BrewBuddy - ML - Agent/
-├── streamlit_app.py
-├── brewbuddy_agent.py
-├── hybrid_ml.py
-├── subjective_context.py
+├── streamlit_app.py          # UI
+├── brewbuddy_agent.py        # Agent + RL
+├── hybrid_ml.py              # Vectors, cosine, classifier
+├── catalog_images.py         # Drink → image path (from CSV)
 ├── background_worker.py
-├── run_background_worker.py
 ├── brewbuddy_data/
-│   ├── __init__.py
-│   ├── database.py
+│   ├── database.py           # SQLite + cafe_menu import
 │   └── datasets/
-│       ├── simplified_coffee.csv
-│       └── coffee_analysis.csv
-├── data/
-│   └── brewbuddy.db               # generated at runtime
-├── agent_state.json               # generated at runtime
-├── QUICKSTART.md
-└── README.md
+│       ├── cafe_menu.csv     # ★ active catalog
+│       └── archive/            # old research CSVs (unused)
+├── images/                   # drink photos (names in CSV)
+├── data/brewbuddy.db         # generated at runtime
+└── agent_state.json          # generated at runtime
 ```
 
 ---
 
 ## Competition Readiness Notes
 
-What is already strong:
-- Hybrid AI + ML architecture
-- Real persistence and dataset integration
-- Explainability narrative
-- Offline evaluation and ablations
-- Professional UI and analytics
+**Strengths:** hybrid architecture, persistence, explainability, ablations, polished UI, clear data story (one menu, one DB).
 
-What to improve further for top-tier judging:
-- Add confusion matrix / classification metrics from a trained classifier
-- Add exported result snapshots (CSV/figures) for paper appendix
-- Add reproducibility checklist (random seeds, run configs, data versioning)
+**Optional next steps:** classification metrics export, run config / seeds in appendix.
 
 ---
 

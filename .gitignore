@@ -13,6 +13,7 @@ env/
 
 # Project specific
 *.pkl
+agent_state.json
 data/brewbuddy.db
 data/*.db
 data/models/

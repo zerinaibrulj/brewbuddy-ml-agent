@@ -1,10 +1,10 @@
 # BrewBuddy Quick Start
 
-This guide is optimized for live demos and competition presentations.
+Live demo guide for presentations.
 
 ---
 
-## 1) Run in 2 Commands
+## 1) Run
 
 ```bash
 pip install -r requirements.txt
@@ -13,95 +13,67 @@ streamlit run streamlit_app.py
 
 Open `http://localhost:8501`.
 
----
-
-## 2) First Demo Flow (Recommended)
-
-1. In sidebar (**Control room**), keep policy as `qlearning`.
-2. Set subjective state:
-   - Sleep, Fatigue, Lactose intolerance, Social battery.
-3. Click **Request recommendation**.
-4. Open **Why this recommendation?** and read the narrative.
-5. Rate and submit.
-6. Repeat a few times (5–10 interactions gives meaningful analytics).
+On first launch the app loads **35 drinks** from `cafe_menu.csv` into SQLite.
 
 ---
 
-## 3) Competition Features to Show
+## 2) Demo Flow
 
-### A) Hybrid AI + ML
-- ML state/category + cosine shortlist
-- RL/bandit policy final action selection
-
-### B) Dataset integration
-- Sidebar → **Competition data boost**
-- Click **Import datasets into catalog**
-- Confirm catalog size increases
-
-### C) Validation + Ablation
-- Go to **Validation** tab
-- Show:
-  - state-level reward chart
-  - ablation comparison table and chart
-
-### D) Explainability
-- In recommendation panel, expand:
-  - **Why this recommendation?**
+1. Click **Browse the full menu catalog** (dashboard).
+2. Tap a drink card → see **need vector**, **drink vector**, **cosine** score.
+3. Sidebar: set sleep, fatigue, time, weather, taste profile.
+4. **Request recommendation** → expand **Why this recommendation?**
+5. Rate the drink (5–10 times for meaningful analytics).
+6. **Validation** tab + **Engineering** expander for judges who want ML detail.
 
 ---
 
-## 4) Analytics Tabs (Current UI)
+## 3) What to Show Judges
 
-- **Q-Table**: state-action heatmap (Q-learning only)
-- **By coffee**: average reward per drink
-- **Curve**: learning trajectory over interactions
-- **Context**: performance by state/context
-- **Catalog**: source composition + feature table
-- **Validation**: evaluation + ablation outputs
+| Topic | Where |
+|-------|--------|
+| Hybrid ML + RL | Live context, recommendation, Validation |
+| Data / DB | Analytics → **Catalog** tab (`coffee_items`) |
+| UX / menu | Dashboard catalog + `images/` |
+| Transparency | Sidebar → **Engineering** |
 
 ---
 
-## 5) Key Sidebar Controls
+## 4) Analytics Tabs
 
-- **Learning engine**: policy + α/γ/ε
-- **Environment**: time/weather/temperature
-- **How you feel**: subjective features
-- **Taste profile**: user preference vector
-- **Hybrid model**: turn classifier+shortlist pipeline on/off
-- **Competition data boost**: import external dataset rows
+- **Q-Table** — Q-learning only
+- **By coffee** / **Curve** / **Context** — learning over time
+- **Catalog** — feature table for all menu drinks
+- **Validation** — ablation comparison
+
+---
+
+## 5) Sidebar
+
+- **Learning engine** — policy, α, γ, ε
+- **Environment** / **How you feel** / **Taste profile**
+- **Hybrid model** toggle
+- **Catalog maintenance** — reload CSV into DB if needed
+- **Engineering** — raw vectors & cosine map
 
 ---
 
 ## 6) Troubleshooting
 
-### App starts but charts look empty
-- You need rated interactions first.
-- `Q-Table` requires `qlearning`.
-
-### Recommendation is missing image
-- Imported coffees may not have a dedicated local image.
-- UI uses fallback coffee imagery automatically.
-
-### Validation tab says insufficient data
-- Add more ratings (minimum ~5, better at 10+).
-
-### Import button doesn’t change much
-- Rows are upserted by coffee name; existing names update.
+| Issue | Fix |
+|-------|-----|
+| Empty charts | Add ratings first |
+| Wrong drink names in catalog | Sidebar → **Reload café menu from CSV** |
+| Missing image | Check `image` column in `cafe_menu.csv` and file in `images/` |
+| Validation empty | Need ≥5 rated interactions |
 
 ---
 
-## 7) “Paper-ready” Checklist
+## 7) Paper Checklist
 
-Before submitting/reporting:
+- [ ] 10+ rated interactions logged
+- [ ] Validation + ablation visible
+- [ ] Menu catalog + images demoed
+- [ ] Screenshots of Engineering + Catalog tab
 
-- [ ] At least 10–20 logged ratings
-- [ ] Validation tab populated
-- [ ] Ablation table populated
-- [ ] Explainability narrative shown in demo
-- [ ] Dataset import demonstrated
-- [ ] Screenshots exported for report appendix
-
----
-
-For full architecture and technical details, see `README.md`.
-
+Full details: `README.md`.
