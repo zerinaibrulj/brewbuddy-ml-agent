@@ -394,6 +394,25 @@ st.markdown(
         text-align: center;
         font-size: 1.02rem;
         color: var(--bb-text-muted) !important;
+        line-height: 1.5;
+        margin: 0 0 0.75rem 0;
+    }}
+    .bb-drink-tags {{
+        text-align: center;
+        margin: 0.5rem 0 0 0;
+    }}
+    .bb-alt-pick {{
+        text-align: center;
+        margin-top: 0.35rem;
+    }}
+    .bb-alt-pick .bb-rec-title {{
+        font-size: 0.88rem;
+        margin: 0.35rem 0 0 0;
+    }}
+    [data-testid="stMainBlockContainer"] .bb-alt-pick [data-testid="stImage"] img {{
+        border-radius: 12px !important;
+        aspect-ratio: 1;
+        object-fit: cover;
     }}
     .bb-rec-card {{
         background: linear-gradient(165deg, rgba(28, 22, 17, 0.92) 0%, rgba(17, 14, 20, 0.92) 100%);
@@ -915,6 +934,39 @@ def _catalog_drink_description(name: str, menu_meta: dict) -> str:
     return "A balanced café favorite from our menu."
 
 
+def _human_drink_tags(coffee_meta: dict, ml_state: str) -> list[str]:
+    """Short, human-readable tags for the recommendation hero (no raw floats)."""
+    caffeine = float(coffee_meta.get("caffeine_level", 0.5))
+    dairy = float(coffee_meta.get("dairy_load", 0.0))
+    bitter = float(coffee_meta.get("bitterness", 0.5))
+    tags: list[str] = []
+    if caffeine >= 0.75:
+        tags.append("Strong caffeine")
+    elif caffeine >= 0.45:
+        tags.append("Moderate caffeine")
+    else:
+        tags.append("Light caffeine")
+    if dairy >= 0.45:
+        tags.append("Creamy")
+    elif dairy < 0.12:
+        tags.append("Dairy-free")
+    if bitter >= 0.6:
+        tags.append("Bold flavor")
+    elif bitter < 0.35:
+        tags.append("Smooth & mild")
+    state_key = str(coffee_meta.get("state_category") or ml_state.lower().replace(" ", "_"))
+    mood = {
+        "extreme_caffeine": "Energy boost",
+        "comfort": "Comfort pick",
+        "balanced": "Balanced",
+        "light_wakeup": "Gentle wake-up",
+        "relaxation": "Relaxing",
+    }
+    if state_key in mood and mood[state_key] not in tags:
+        tags.append(mood[state_key])
+    return tags[:4]
+
+
 def _drink_ml_snapshot(agent: BrewBuddyAgent, drink_name: str) -> dict:
     """Need vector, 4D coffee vector, and cosine vs current need."""
     meta = agent.coffee_items.get(drink_name) or {}
@@ -1347,46 +1399,56 @@ with main:
         """,
             unsafe_allow_html=True,
         )
-        img_c, text_c = st.columns([0.95, 1.05])
+        menu_meta = _cached_cafe_menu_meta()
+        roast = (menu_meta.get(coffee_name) or {}).get("roast", "").strip()
+        human_tags = _human_drink_tags(coffee_meta, ag.current_ml_state)
+        if roast and roast not in human_tags:
+            human_tags = [roast] + human_tags[:3]
+        tag_html = "".join(f'<span class="bb-chip">{html.escape(t)}</span> ' for t in human_tags)
+        desc_safe = html.escape(_catalog_drink_description(coffee_name, menu_meta))
+        img_c, text_c = st.columns([1, 1.05])
         with img_c:
             if coffee_image_path and os.path.exists(coffee_image_path):
                 st.image(Image.open(coffee_image_path), use_container_width=True, output_format="auto")
         with text_c:
             st.markdown(
                 f"""
-            <p class="bb-drink-name">{coffee_name}</p>
-            <p class="bb-drink-desc">{_catalog_drink_description(coffee_name, _cached_cafe_menu_meta())}</p>
-            <p style="text-align:center; margin-top:0.35rem;">
-                <span class="bb-chip">State: {ml_state}</span>
-                <span class="bb-chip">Caffeine {caffeine_level:.2f}</span>
-                <span class="bb-chip">Bitterness {bitterness:.2f}</span>
-                <span class="bb-chip">Dairy {dairy_load:.2f}</span>
-            </p>
+            <p class="bb-drink-name">{html.escape(coffee_name)}</p>
+            <p class="bb-drink-desc">{desc_safe}</p>
+            <p class="bb-drink-tags">{tag_html}</p>
             """,
                 unsafe_allow_html=True,
             )
-            top_alts = [c for c in ag._candidate_coffees if c != coffee_name][:3]
+        top_alts = [c for c in ag._candidate_coffees if c != coffee_name][:3]
+        if top_alts:
+            st.markdown(
+                '<p class="bb-section-label" style="margin:1rem 0 0.5rem 0">Also on today\'s shortlist</p>',
+                unsafe_allow_html=True,
+            )
+            alt_cols = st.columns(len(top_alts))
+            for i, alt in enumerate(top_alts):
+                with alt_cols[i]:
+                    alt_path = get_catalog_image_path(alt)
+                    if alt_path and os.path.exists(alt_path):
+                        st.image(Image.open(alt_path), use_container_width=True, output_format="auto")
+                    st.markdown(
+                        f'<div class="bb-alt-pick"><p class="bb-rec-title">{html.escape(alt)}</p></div>',
+                        unsafe_allow_html=True,
+                    )
+        with st.expander("Why this recommendation?", expanded=False):
+            for bullet in ag.recommendation_narrative(coffee_name):
+                st.markdown(f"- {bullet}")
+            st.caption("Technical snapshot (for evaluation — full vectors in sidebar Engineering)")
+            st.markdown(
+                f"- **ML state:** {ml_state} · **Caffeine** {caffeine_level:.2f} · "
+                f"**Bitterness** {bitterness:.2f} · **Dairy** {dairy_load:.2f}"
+            )
             if top_alts:
-                st.markdown("**Alternative picks from current shortlist**")
-                alt_cols = st.columns(len(top_alts))
-                for i, alt in enumerate(top_alts):
-                    alt_meta = ag.coffee_items.get(alt, {})
-                    cos = ag.last_cosine_scores.get(alt, 0.0)
-                    with alt_cols[i]:
-                        st.markdown(
-                            f"""
-                            <div class="bb-rec-card">
-                                <p class="bb-rec-title">{alt}</p>
-                                <p class="bb-rec-meta">Cosine score: {cos:.3f}</p>
-                                <p class="bb-rec-meta">Caffeine: {float(alt_meta.get("caffeine_level", 0.0)):.2f}</p>
-                                <p class="bb-rec-meta">Dairy load: {float(alt_meta.get("dairy_load", 0.0)):.2f}</p>
-                            </div>
-                            """,
-                            unsafe_allow_html=True,
-                        )
-            with st.expander("Why this recommendation? (explainability narrative)", expanded=True):
-                for bullet in ag.recommendation_narrative(coffee_name):
-                    st.markdown(f"- {bullet}")
+                lines = [
+                    f"- **{alt}:** cosine {float(ag.last_cosine_scores.get(alt, 0.0)):.3f}"
+                    for alt in top_alts
+                ]
+                st.markdown("**Shortlist similarity**\n" + "\n".join(lines))
         st.divider()
         st.markdown("**How was it?**")
         rating = st.select_slider(

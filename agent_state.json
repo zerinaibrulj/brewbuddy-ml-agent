@@ -1739,6 +1739,43 @@
       "Vanilla Latte": 0.0,
       "Vietnamese Iced Coffee (C\u00e0 Ph\u00ea S\u1eefa \u0110\u00e1)": 0.0,
       "White Chocolate Mocha": 0.0
+    },
+    "evening_sunny_moderate__s08f7l0socE__relaxation": {
+      "Decaf Americano": 0.5,
+      "Decaf Cappuccino": 0.0,
+      "Decaf Latte": 0.0,
+      "Affogato": 0.0,
+      "Almond Milk Cappuccino": 0.0,
+      "Americano": 0.0,
+      "Caff\u00e8 Misto": 0.0,
+      "Cappuccino": 0.0,
+      "Caramel Macchiato": 0.0,
+      "Cold Brew": 0.0,
+      "Cortado": 0.0,
+      "Doppio Espresso": 0.0,
+      "Espresso": 0.0,
+      "Flat White": 0.0,
+      "Frappuccino": 0.0,
+      "French Press": 0.0,
+      "Hazelnut Latte": 0.0,
+      "Honey Cinnamon Latte": 0.0,
+      "Hot Chocolate": 0.0,
+      "Iced Americano": 0.0,
+      "Iced Coffee": 0.0,
+      "Iced Latte": 0.0,
+      "Iced Mocha": 0.0,
+      "Irish Coffee": 0.0,
+      "Latte": 0.0,
+      "Long Black": 0.0,
+      "Macchiato": 0.0,
+      "Mocha": 0.0,
+      "Oat Milk Latte": 0.0,
+      "Pour-Over Coffee": 0.0,
+      "Ristretto": 0.0,
+      "Turkish Coffee": 0.0,
+      "Vanilla Latte": 0.0,
+      "Vietnamese Iced Coffee (C\u00e0 Ph\u00ea S\u1eefa \u0110\u00e1)": 0.0,
+      "White Chocolate Mocha": 0.0
     }
   },
   "interaction_history": [
@@ -2217,9 +2254,39 @@
         0.30000000000000004
       ],
       "timestamp": "2026-05-21T19:37:44.383849"
+    },
+    {
+      "coffee": "Decaf Americano",
+      "rating": 5,
+      "reward": 5.0,
+      "context": "evening_sunny_moderate__s08f7l0socE__relaxation",
+      "ml_state": "relaxation",
+      "subjective": {
+        "sleep_hours": 8.5,
+        "fatigue": 7,
+        "lactose_intolerance": false,
+        "social_battery": "Empty"
+      },
+      "candidates": [
+        "Decaf Americano",
+        "Decaf Cappuccino",
+        "Decaf Latte"
+      ],
+      "cosine_scores": {
+        "Decaf Americano": 0.7352119055832099,
+        "Decaf Cappuccino": 0.6777643546727998,
+        "Decaf Latte": 0.6777643546727998
+      },
+      "need_vector": [
+        0.5762499999999999,
+        0.64,
+        0.0,
+        0.26
+      ],
+      "timestamp": "2026-05-21T22:03:38.364008"
     }
   ],
-  "total_interactions": 43,
+  "total_interactions": 44,
   "best_coffee": "Macchiato",
   "best_rating": 5.0,
   "strategy": "qlearning",
@@ -2235,7 +2302,6 @@
     "Caramel Macchiato",
     "Cold Brew",
     "Cortado",
-    "Decaf",
     "Decaf Americano",
     "Decaf Cappuccino",
     "Decaf Latte",
