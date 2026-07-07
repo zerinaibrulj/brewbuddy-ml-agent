@@ -6,12 +6,16 @@ Active catalog: brewbuddy_data/datasets/cafe_menu.csv → coffee_items (source_r
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 from datetime import datetime
+from io import StringIO
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import pandas as pd
+
+_COL_ALIAS = re.compile(r"^.+\(([^)]+)\)$")
 
 
 def get_default_db_path() -> Path:
@@ -105,12 +109,35 @@ def get_cafe_menu_path() -> Path:
     return Path(__file__).resolve().parent / "datasets" / "cafe_menu.csv"
 
 
+def _canonical_col(name: str) -> str:
+    m = _COL_ALIAS.match(str(name).strip())
+    return m.group(1).strip() if m else str(name).strip()
+
+
+def _read_dataset_csv(path: Path) -> pd.DataFrame:
+    """Read café/dataset CSV with encoding + delimiter detection and column aliases."""
+    raw = path.read_bytes()
+    text = None
+    for enc in ("utf-8-sig", "utf-8", "cp1250", "cp1252", "latin-1"):
+        try:
+            text = raw.decode(enc)
+            break
+        except UnicodeDecodeError:
+            continue
+    if text is None:
+        text = raw.decode("latin-1")
+    first_line = text.splitlines()[0] if text else ""
+    sep = ";" if ";" in first_line else ","
+    df = pd.read_csv(StringIO(text), sep=sep)
+    return df.rename(columns={c: _canonical_col(c) for c in df.columns})
+
+
 def get_cafe_menu_meta() -> Dict[str, Dict[str, str]]:
     """Short copy for sidebar catalog cards (from cafe_menu.csv)."""
     path = get_cafe_menu_path()
     if not path.exists():
         return {}
-    df = pd.read_csv(path)
+    df = _read_dataset_csv(path)
     out: Dict[str, Dict[str, str]] = {}
     for _, row in df.iterrows():
         name = str(row.get("name", "")).strip()
@@ -443,7 +470,7 @@ def import_dataset_rows(
         for p in paths:
             if not p.exists():
                 continue
-            df = pd.read_csv(p)
+            df = _read_dataset_csv(p)
             if len(df) > limit_per_dataset:
                 # Keep highest-rated samples for stronger recommendation relevance.
                 if "rating" in df.columns:
